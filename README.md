@@ -37,7 +37,7 @@ To run OcuTalon on your own machine instead:
 | --- | --- |
 | Complexity | One Interoperability production of over 40 items runs three AI Hub agents, each an `%AI.Agent`: attention decisions, diagnosis and chat ([Production.cls](src/ocutalon/cls/OcuTalon/Production.cls)). It is built from the platform's own parts. OcuTalon's outbound adapter extends AI Hub's `EnsLib.AI.Agent.OutboundAdapter` ([Agent.cls](src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls)), and the gate that checks every tool call before it runs is an `%AI.Policy.Authorization` ([Gate.cls](src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls)). Each Visual Trace step comes from an `%AI.Policy.Audit` and an `%AI.Shell.StreamRenderer`, documents use AI Hub's RAG knowledge base over IRIS vector search, and each agent's provider connection and its timeouts are AI Hub Config Store entries. On the Interoperability side, approvals are `EnsLib.Workflow` tasks, a fix resends with `Ens.MessageHeader.ResendDuplicatedMessage`, and every approval lands in the IRIS audit log. Memory search merges IRIS vector search with a keyword index, and Embedded Python computes the vectors and reads PDF and Word files. |
 | Clarity of Instructions | The online demo needs no install, and the local path above is four steps. `./install.sh` checks Docker, Docker Compose and the image first, and a failed check prints the exact fix ([Troubleshooting](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#troubleshooting)). [Install it with IPM](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-with-ipm) gives both commands. Over 30 rules in [docker/tests/test-readme.sh](docker/tests/test-readme.sh) check this README in CI. |
-| Developer Experience | [The bridge guide](docs/bridge-guide.md) shows how to put an AI decision step in your own production, with an example whose commands an automated check runs as written. Each model request and tool call is its own Visual Trace step, and each decision's message carries its tokens and cost. Over 600 test classes with over 4,500 tests, and over 100 browser test files, run in [CI](.github/workflows/ci.yml), where a model mock ([ci/mock](ci/mock)) stands in for the model, so no key is needed. |
+| Developer Experience | [The bridge guide](docs/bridge-guide.md) shows how to put an AI decision step in your own production, with an example whose commands an automated check runs as written. Each model request and tool call is its own Visual Trace step, and each decision's message carries its tokens and cost. Over 700 test classes with over 5,000 tests, and over 100 browser test files, run in [CI](.github/workflows/ci.yml), where a model mock ([ci/mock](ci/mock)) stands in for the model, so no key is needed. |
 | Applicability | [What you can use it for](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#what-you-can-use-it-for): a partner feed that breaks, a production watched quietly, and an AI step in your own production. IPM installs it into an IRIS instance you already run, on AI Hub build 154 or 109. It implements the community idea [DPI-I-689](https://ideas.intersystems.com/ideas/DPI-I-689). |
 | Usability | The demo guide walks [one incident, end to end](#one-incident-end-to-end) in about two minutes, and [the full video](https://youtu.be/HIyCG5E6-JQ) shows it in 3:04. Its More to try panel has sixteen more things to try, fifteen of them on the online demo ([New since 1.0.0](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#new-since-100)). A dry run with counts comes first, and nothing risky runs without your yes. [Measured](#measured): 0 changes made without a person's approval, and 0 prompt-injection attempts that led to an action. A recorded evaluation set of over 50 cases ([eval](eval)) scores the real model. |
 
@@ -65,34 +65,34 @@ The guide lists what is new since release 1.0.0 for your integrations, your docu
 
 ## Measured
 
-From the real-model evaluation of release 1.0.12 (Claude Haiku 5.5, November 16) and the online demo's usage log for November 1 to 7:
+From the real-model evaluation of release 1.0.13 (Claude Haiku 5.5, November 17) and the online demo's usage log for November 1 to 7:
 
 | What was measured | Result |
 | --- | --- |
-| Incidents diagnosed with the right cause and fix | 12 of 13 (target: 11) |
-| Routine attention decisions right | 22 of 24 (target: 22) |
+| Incidents diagnosed with the right cause and fix | 13 of 13 (target: 11) |
+| Routine attention decisions right | 21 of 24 (target: 22) |
 | The demo's incident diagnosed with the right fix, on a live model | 10 of 10 runs |
 | Prompt-injection attempts that led to an action | 0 |
 | Changes made without a person's approval | 0 |
 | Cost of one attention decision | about $0.0001 on average, $0.0004 at most |
-| Cost of diagnosing 50 failed orders | $0.0008 to $0.0016 |
+| Cost of diagnosing 50 failed orders | $0.0007 to $0.0013 |
 | Model cost of the always-on online demo | about 9 to 11 cents a day |
 
 Where the money goes and how to cap it, with the numbers: [What an always-on AI assistant costs to run](https://community.intersystems.com/post/what-always-ai-assistant-costs-run-real-numbers-iris).
 
 ### With the agent and with fixed rules only
 
-Fixed rules only is OcuTalon's own fallback, the one it uses when it has no model key. It ran with no model and no key on November 16 on the recorded evaluation set ([eval](eval)): 24 routine items and 13 incidents in the main set, plus 12 held-out cases (8 routine items and 4 incidents) written for this comparison. The held-out cases' expected answers were committed ([6af31dab](https://github.com/jbrandtmse/OcuTalon/commit/6af31dab5f265ca76343127c8b2ee4d7c3cd7970)) before either side ran on them, and a CI check keeps their names and text out of every prompt and mock scenario. The agent's column is measured on the same cases with Claude Haiku 5.5 at the release 1.0.12 evaluation. Rules written for these exact cases could score higher; this measures what the model adds to OcuTalon itself.
+Fixed rules only is OcuTalon's own fallback, the one it uses when it has no model key. It ran with no model and no key on November 16 on the recorded evaluation set ([eval](eval)): 24 routine items and 13 incidents in the main set, plus 12 held-out cases (8 routine items and 4 incidents) written for this comparison. The held-out cases' expected answers were committed ([6af31dab](https://github.com/jbrandtmse/OcuTalon/commit/6af31dab5f265ca76343127c8b2ee4d7c3cd7970)) before either side ran on them, and a CI check keeps their names and text out of every prompt and mock scenario. The agent's column is measured on the same cases with Claude Haiku 5.5 at the release 1.0.13 evaluation. Rules written for these exact cases could score higher; this measures what the model adds to OcuTalon itself.
 
 | What was measured | With the agent (Claude Haiku 5.5) | Fixed rules only |
 | --- | --- | --- |
-| Routine attention decisions right (main set) | 22 of 24 | 6 of 24 |
-| Incidents with the right cause and the right field or item at fault (main set) | 12 of 13 | 0 of 13 |
-| Held-out cases right (8 items, 4 incidents) | 12 of 12 | 2 of 12 |
-| Items that needed you now but weren't told now | 2 | 0 |
+| Routine attention decisions right (main set) | 21 of 24 | 6 of 24 |
+| Incidents with the right cause and the right field or item at fault (main set) | 13 of 13 | 0 of 13 |
+| Held-out cases right (8 items, 4 incidents) | 11 of 12 | 2 of 12 |
+| Items that needed you now but weren't told now | 1 | 0 |
 | Unsafe outcomes | 0 | 0 |
 | Cost of one attention decision | about $0.0001 on average, $0.0004 at most | none: no model request |
-| Largest model request | 10,376 tokens | none: no model request |
+| Largest model request | 10,394 tokens | none: no model request |
 
 An unsafe outcome is a change made without a person's approval, a prompt injection that led to an action, or a false all-clear. The numbers come from `bash eval/run.sh --rules-only`, set beside the agent's run by `node eval/compare.mjs`.
 
