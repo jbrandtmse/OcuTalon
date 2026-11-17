@@ -30,6 +30,9 @@ Include %cspBuild
 /// Isolation (Story 0.40, DW-1449): the running production's daily digest (Digest.Process Ticked) queues a digest for every session created before its due time,
 /// so a tick inside a test would give a back-dated fixture session a Delivery (and, in demo mode, a SimMessage) and Purge would keep it. Each fixture session
 /// therefore gets a Digest.Data.Sent row of Kind scheduled with a far-future DueAt (Covered), which the test removes; the counts of every session are in the messages.
+///   - TestDigestTickInsideThePurge (Story 0.40, the Contest Planner's deterministic proof): a digest tick handled by a shadow OcuTalon.Test.Digest.ProcessProbe that works
+///     only for the test's session, inside the purge test's window: with the Sent row (Covered) nothing is queued and Retention.Purge removes the idle session; without it
+///     the tick queues a digest for the session (the old failure, on demand);
 ///   - TestRetentionPassesOneNowHostFirst (matrix 3): Retention.Purge calls the host part first and then the bridge part, both with the one now it took.
 Class OcuTalon.Test.Data.Purge Extends %UnitTest.TestCase
 {
@@ -415,6 +418,45 @@ Method TestNoActivityGoesRecentDeliveryKept()
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Delivery WHERE OwnerRef = ?", notified)
 }
 
+/// Story 0.40 (DW-1449): the deterministic proof of the isolation. A digest tick inside the window, with and without the Sent row of Covered.
+Method TestDigestTickInsideThePurge()
+{
+	Set probe = "OcuTalon.Test.Digest.ProcessProbe"
+	Set online = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Set covered = ..Session(91)
+	Set bare = ..Session(91, 0)
+	Try {
+		// with the Sent row: the tick queues nothing for the session, and the purge removes it
+		Do $ClassMethod(probe, "Reset")
+		Do ..DigestTick(covered)
+		Do $$$AssertEquals($ClassMethod(probe, "Count", "compose")_"|"_..Count("SELECT COUNT(*) FROM OcuTalon_Digest_Msg.Compose WHERE SessionRef = ?", covered), "0|0", "with the Sent row, a digest tick inside the purge queues nothing for the session")
+		// without it: the tick queues a digest for the session, the old failure on demand
+		Do $ClassMethod(probe, "Reset")
+		Do ..DigestTick(bare)
+		Do $$$AssertEquals($ClassMethod(probe, "Count", "compose")_"|"_..Count("SELECT COUNT(*) FROM OcuTalon_Digest_Msg.Compose WHERE SessionRef = ?", bare), "1|1", "without it, the same tick queues one digest for the session")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Retention).Purge(90), "Retention.Purge(90) is OK")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(covered), 0, "and the covered idle session is purged (deliveries "_..Count("SELECT COUNT(*) FROM OcuTalon_Data.Delivery WHERE OwnerRef = ?", covered)_")")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the digest tick test runs")
+	}
+	Do $ClassMethod(probe, "Clean", covered_","_bare)
+	Do $ClassMethod(probe, "Reset")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", online)
+}
+
+/// A digest Tick at now, handled by a shadow instance of the Digest process probe that works only for the session (ProcessProbe Only), as the running Digest would.
+Method DigestTick(session As %String)
+{
+	Set host = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Digest.ProcessProbe", .sc)
+	Do $$$AssertTrue($IsObject(host), "a shadow instance of the Digest process probe is made")
+	If '$IsObject(host) Quit
+	Set host.Only = session
+	Set tick = ##class(OcuTalon.Msg.Tick).%New()
+	Set tick.TickAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(host.OnRequest(tick, .response), "the digest tick is handled")
+}
+
 Method TestRetentionPassesOneNowHostFirst()
 {
 	Set source = "OcuTalon.Test.Bridge.Source"
@@ -463,15 +505,15 @@ Method Track(ref As %String) As %String
 	Quit ref
 }
 
-/// A session row created that many days before the clock of the test.
-Method Session(days As %Integer) As %String
+/// A session row created that many days before the clock of the test; with covered 1 (the default) the daily digest is kept off it (Covered).
+Method Session(days As %Integer, covered As %Boolean = 1) As %String
 {
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzpurge")
 	Do ..Track(ref)
 	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
 	Set row.CreatedAt = ..Ago(days * ..#DAY)
 	$$$ThrowOnError(row.%Save())
-	Do ..Covered(ref)
+	If covered Do ..Covered(ref)
 	Quit ref
 }
 
