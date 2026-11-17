@@ -125,3 +125,5 @@
 2026-11-17T09:19:13Z	Epic 27	epic_status_done	stories=3
 2026-11-17T09:19:13Z	Epic 27	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=sonnet high_med_avg=3.0 unresolved_high_med_avg=2.0(27.1:3,27.3:3,27.2:0) metric=unresolved rework_stories=1(27.3:ci+planner_viewer_blocker) review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=10 result=recommend_escalate applied=false(gates.model_tier=record_only) note=unresolved_entries_were_routed/escalated_design_and_scope_items(DW-1440..1442,1465,1466),not_escaped_implementation_defects
 2026-11-17T09:19:13Z	Epic 27	epic_retro_skipped	reason=policy(gates.retrospective=skip)
+2026-11-17T09:19:26Z	Epic 27	integrated_forward	feature=103a6ac7a head=d89701dcc conflicts_resolved=none note=final_check:origin/feature_unchanged_since_the_27.2_integrate(already_ancestor_of_884dcb3be);suite+smoke_on_merged_tree_=_27.2_smoke(127_PASS)+CI_44047367644/44047367702_green
+2026-11-17T09:19:26Z	Epic 27	epic_runner_complete	stories_completed=3
