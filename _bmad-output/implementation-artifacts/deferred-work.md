@@ -8938,6 +8938,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: ApplyService quits on a failed ApplyAppRole/ApplyApplication/MakeResource before ClosePublicPermission, so on such a failed start an admin-set public permission stays open while an existing /mcp/ocutalon still adds OcuTalonMCPApp (S-28.3-4 says every start). Fix: close whenever the resource exists, even after an earlier failure, plus a failure-seam test.
 - 2026-11-17T02:24:18Z status=routed owner=burndown by=cr note=28.3 re-review (Rule 15 exit): needs control-flow change and failure-seam test; the next successful start closes it
+- 2026-11-17T02:57:32Z status=open owner=28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients by=planner note=ruled: fix in 28.3 - close the public permission first, unconditionally, before anything that can fail; test an earlier part failing; rework iteration 2
 
 ### DW-1473: flake candidate: OcuTalon.Test.Mcp.SourceRunProduction TestStopThenResume 'the poll was recorded within 40 seconds' failed once in a fresh lane-C shard run of lane-a at Mcp (class took 93 s under host load)
 - source: epic-28 fresh check e28s3f2 | severity: low | fix-risk: low | footprint: out-of-footprint

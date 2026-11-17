@@ -2,7 +2,7 @@
 title: "Story 28.3: Offer OcuTalon's read-only tools to MCP clients"
 type: 'feature'
 created: '2026-11-16'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '97afccbd1f904a223431ae616639679c94973ca3'
 baseline_commit: '97afccbd1f904a223431ae616639679c94973ca3'
 review_loop_iteration: 0
@@ -115,6 +115,10 @@ deferred:
 - [x] [Review] SECURITY INVARIANT S-28.3-4 (Planner ruling, binding): the Mcp step closes `OcuTalon_MCPServer`'s PUBLIC permission on every start (a public permission would let any signed-in user pass the resource check and receive the private-database application role). Pin it: a test that sets a public permission (e.g. `RW` or `U`) on the resource, runs the Mcp step (off-demo), and asserts the public permission is empty afterwards; demonstrate its mutation (drop the closing call → red) and write the `mutation:` line.
 - Keep everything else byte-identical. No other text changes. Lane-C throwaways only (tags `e28s3r`/`e28s3rw`).
 
+
+**Rework iteration 2 (2026-11-17, Contest Planner ruling on DW-1470, `prompts/story-283-rulings-20261116.md` last section; work ONLY this item):**
+- [ ] [Review] DW-1470 / S-28.3-4 hardening: `Install.Step.Mcp.ApplyService` closes `OcuTalon_MCPServer`'s public permission FIRST, UNCONDITIONALLY, before anything that can fail, on every start (when the resource exists; keep the close after `MakeResource` too, for a resource the step just created). A failure of any later part (`ApplyAppRole`, `ApplyApplication`, `MakeResource`) must never leave a public permission open. Add a test: an earlier part fails (a probe seam or subclass that makes `ApplyAppRole` or `ApplyApplication` return an error), with a public permission set beforehand; the step returns the error AND the public permission ends up closed. Demonstrate its mutation (move the first close back after the failing part → red) and write the `mutation:` line. Online demo behaviour unchanged. No user-facing text changes.
+
 **Acceptance Criteria:**
 - Given an install with `onlineDemo` 0, when the installer steps run, then the `Mcp` step runs before `Roles`, `OcuTalon_MCPServer` exists with no public permission, `/mcp/ocutalon` has exactly `ServiceApp()`'s properties (password only, namespace OCUTALON, no application roles, outside the sign-in group, dispatch `OcuTalon.Mcp.Service`), `OcuTalonMCPClient` holds exactly `OcuTalon_MCPServer:U`, `%DB_OCUTALON_CODE:R`, `%DB_OCUTALON_DATA:R` and `%DB_OCUTALON_PRIVATE:R` and no SQL privilege, and `OcuTalonUser` is unchanged (`Test.Mcp.ServiceInstall`, fresh stack).
 - Given `onlineDemo` 1, when the Mcp step runs and `Grants()` is read, then no application, resource or `OcuTalonMCPClient` grant exists or is declared (a present application and resource are deleted), `Service.OnAuthenticate` returns an error whose text is P1, and each tool answers `{"ok": false, "message": P1}` and reads nothing (`Test.Mcp.ServiceInstall`, `Test.Mcp.ServiceTools`).
@@ -176,6 +180,8 @@ Rejected:
 - The spec's in-stage note and Integration AC still describe the superseded design (Auditor) -- the fix edits the spec; for the lead.
 
 ## Spec Change Log
+
+- 2026-11-17 (lead, rework iteration 2): the Planner ruled DW-1470 fixed in 28.3 (close the public permission first, unconditionally; pin a failing-earlier-part test); status re-opened to in-progress.
 
 - 2026-11-17 (lead, after the rework re-review): Integration AC and the implement in-stage note brought in line with the Task 0b design and DW-1461 (non-frozen sections).
 
