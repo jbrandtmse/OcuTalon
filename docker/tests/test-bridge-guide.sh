@@ -757,12 +757,12 @@ fi
 
 # --- confidencetext ---
 
-# confidence_lines: the lines of the guide that DW-1421 round 3 ruled (Contest Planner, Nov 16): the Confidence row of DecisionResponse (a diagnosis
-# may have none), the DecisionPayload paragraph (CONFIDENCEREQUIRED) and the invalid bullet (the fixed refusal tags), one per line.
+# confidence_lines: the lines of the guide that DW-1421 round 3 ruled (Contest Planner, Nov 16): the Confidence row of DecisionResponse (a decision
+# or a diagnosis may have none; the triage-accept ruling, Contest Planner, Nov 17), the DecisionPayload paragraph (CONFIDENCEREQUIRED) and the invalid bullet (the fixed refusal tags), one per line.
 confidence_lines() {
   cat << 'EOF'
-| `Confidence` | The model-reported confidence, 0 to 1. A diagnosis may have none: it is then empty, never 0, and the incident card shows none. |
-**`OcuTalon.Bridge.Msg.DecisionPayload`** is what the agent answers with, one JSON object with three fields: `outcome` (one of the outcomes below), `reasons` (a list of short sentences, at least one that is not blank) and `confidence` (a number from 0 to 1). A reply with another field or a field of the wrong type is `invalid`, and so is a reply without a confidence when its class requires one. The class parameter `CONFIDENCEREQUIRED` says whether it does: it is 1 on `OcuTalon.Bridge.Msg.DecisionPayload` and 0 on `OcuTalon.Watch.Msg.DiagnosisPayload`, so a diagnosis without a confidence is accepted and has none.
+| `Confidence` | The model-reported confidence, 0 to 1. A decision or a diagnosis may have none: it is then empty, never 0, and its card or strip shows none. |
+**`OcuTalon.Bridge.Msg.DecisionPayload`** is what the agent answers with, one JSON object with three fields: `outcome` (one of the outcomes below), `reasons` (a list of short sentences, at least one that is not blank) and `confidence` (a number from 0 to 1). A reply with another field or a field of the wrong type is `invalid`, and so is a reply without a confidence when its class requires one. The class parameter `CONFIDENCEREQUIRED` says whether it does: it is 0 on both `OcuTalon.Bridge.Msg.DecisionPayload` and `OcuTalon.Watch.Msg.DiagnosisPayload`, so a decision or a diagnosis without a confidence is accepted and has none, while a confidence that is given must still be from 0 to 1.
 - `invalid`: the reply did not pass the `ReplyClass` check. The warning that `Decide` logs for it names each refused rule by a fixed tag that the reply class lists, such as `<field>-too-long` or `confidence-out-of-range`, and carries no value of the reply.
 EOF
 }

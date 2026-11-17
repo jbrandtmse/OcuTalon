@@ -212,13 +212,13 @@ Method SeedAll(Output expected, Output count) [ Private ]
 	Set case.State = "decided"
 	$$$ThrowOnError(case.%Save())
 	Set ..Made = ..Made _ $ListBuild("case|"_case.%Id())
-	// A triage reply with no confidence: the parent's rule, against the triage runner's own reply class.
+	// A triage reply refused by the parent's own rule, against the triage runner's own reply class (a triage reply with no confidence passes since the triage-accept ruling).
 	Set marker = ..Marker()
-	Set triage = {"outcome": "act", "reasons": [("Checked "_marker)]}
+	Set triage = {"outcome": "maybe", "reasons": [("Checked "_marker)], "confidence": 0.5}
 	Set ref = ..SeedDecision("decide")
 	Do ..SeedReply(ref, "decide", ..#TRIAGE, triage.%ToJSON())
-	Set expected(ref, 1) = $ListBuild(triage.%ToJSON(), marker, ..#TRIAGE, "confidence-missing", "confidence", "check")
-	Set count("confidence-missing") = $Get(count("confidence-missing")) + 1
+	Set expected(ref, 1) = $ListBuild(triage.%ToJSON(), marker, ..#TRIAGE, "outcome-unlisted", "outcome", "check")
+	Set count("outcome-unlisted") = $Get(count("outcome-unlisted")) + 1
 	// A reply that passes the check now.
 	Set marker = ..Marker()
 	Set usable = $ClassMethod(..#PAYLOAD, "Usable")

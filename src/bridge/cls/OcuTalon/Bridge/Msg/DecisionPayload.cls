@@ -7,8 +7,10 @@
 Class OcuTalon.Bridge.Msg.DecisionPayload Extends (%RegisteredObject, %JSON.Adaptor)
 {
 
-/// 1 when a reply must carry a confidence (the rule confidence-missing). A subclass whose confidence is only shown sets it to 0: a reply without one is then accepted and has none (DiagnosisPayload, DW-1421 C5).
-Parameter CONFIDENCEREQUIRED = 1;
+/// 1 when a reply must carry a confidence (the rule confidence-missing); 0 here and on DiagnosisPayload (DW-1421 C5): a reply without one is accepted and has none, never 0, and a
+/// confidence that is given must still be from 0 to 1 (confidence-out-of-range). Triage became 0 by the Contest Planner's triage-accept ruling (Nov 17): a reply that left out its
+/// confidence is used instead of being replaced by a Tell now fallback.
+Parameter CONFIDENCEREQUIRED = 0;
 
 /// The fixed name of each rule of %OnValidateObject and the JSON field it reads, as tag:field, comma-separated, then the length tag of each limited field (field-too-long) and the range tag
 /// (confidence-out-of-range), which no rule raises; a subclass lists these first, then its own. A tag that ends in -out-of-range is the range tag of a field with a MINVAL or MAXVAL, which no rule raises.

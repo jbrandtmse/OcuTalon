@@ -19,8 +19,8 @@
 ///     carries a plain-English reason (HELDBEFOREUPDATE) that holds no class name, no code and no status text;
 ///   - TestBadSettings: CheckSettings names TimerSeconds (0, 11, 111, x), ReplyFilterClass (missing, not an extension class) and
 ///     ReplyClass (missing, not a JSON class; a diagnose request with none);
-///   - TestReplyCheck: a JSON object, also inside one code fence, passes; an outcome that is not one of OUTCOME, no reason, a blank
-///     reason, no confidence, a confidence over 1, an extra field, text that is not JSON, an array and an empty text fail; and
+///   - TestReplyCheck: a JSON object, also inside one code fence, and one with no confidence (the triage-accept ruling), pass; an outcome that is not one of OUTCOME, no reason, a blank
+///     reason, a confidence over 1, an extra field, text that is not JSON, an array and an empty text fail; and
 ///     Conclude records nothing for a reply that fails;
 ///   - TestFilter: the filter runs once on each model-written text (each reason; a turn's text) and not on the code-written line;
 ///   - TestFilterBlanks: a decision with no reason left once filtered, and a turn with no text left, are refused with no row and no
@@ -650,7 +650,7 @@ Method TestReplyCheck()
 	Do ..AssertReply("{""outcome"":""maybe"",""reasons"":[""r""],""confidence"":0.5}", 0, "an outcome that is not one of OUTCOME")
 	Do ..AssertReply("{""outcome"":""ignore"",""reasons"":[],""confidence"":0.5}", 0, "no reason")
 	Do ..AssertReply("{""outcome"":""ignore"",""reasons"":["" "",""""],""confidence"":0.5}", 0, "only blank reasons")
-	Do ..AssertReply("{""outcome"":""ignore"",""reasons"":[""r""]}", 0, "no confidence")
+	Do ..AssertReply("{""outcome"":""ignore"",""reasons"":[""r""]}", 1, "no confidence (the triage-accept ruling: a reply that leaves out its confidence is used)")
 	Do ..AssertReply("{""outcome"":""ignore"",""reasons"":[""r""],""confidence"":1.5}", 0, "a confidence over 1")
 	Do ..AssertReply("{""outcome"":""ignore"",""reasons"":[""r""],""confidence"":0.5,""extra"":1}", 0, "an extra field")
 	Do ..AssertReply("{""outcome"":""ignore"",""reasons"":""r"",""confidence"":0.5}", 0, "reasons that are a string")
