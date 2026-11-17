@@ -14,6 +14,8 @@
 ///   - TestNoPairWithoutACode: a bare /start, a /start of spaces and a group chat's /start submit no Pair;
 ///   - TestBadCodes (Story 12.5): an unknown, an expired, a used and a reset code each get the bad-code reply, link nothing, publish no
 ///     event and leave a rejected audit entry that holds no Telegram identity;
+///   - TestNotUserIsBadCode (Story 0.38, P1): a valid, unused code of a session whose user may not chat (a viewer's account, a disabled one) gets the same bad-code reply as an unknown code, links nothing,
+///     publishes no pairing event and leaves the code unused and one rejected audit entry with the reason not_user (the real reason, for admins); the code of an account that may chat (control) pairs;
 ///   - TestStrangerReplies: a bare /start and /help get the start text, any other message from a chat that is not paired gets the
 ///     not-paired text once a minute only (the reply slot), reaches no session or model, and leaves a row with no session, no name and no
 ///     code, which the Core area's Purge removes once old;
@@ -384,6 +386,59 @@ Method TestBadCodes()
 		}
 	} Catch ex {
 		Do $$$AssertTrue(0, "the bad-codes test failed: "_..Safe(ex))
+	}
+	Do ..Ending()
+}
+
+/// P1: a valid code of a session whose user may not chat is answered pairing.badCode and links nothing; the audit entry carries the reason not_user.
+Method TestNotUserIsBadCode()
+{
+	If '..Begin() Quit
+	Try {
+		Set viewerChat = 84017734120
+		Set disabledChat = 84017734121
+		Set okChat = 84017734122
+		Set viewer = ..NewSession("zztgpairv")
+		Set disabled = ..NewSession("zztgpaird")
+		Set ok = ..NewSession("zztgpairok")
+		Set viewerUser = ##class(OcuTalon.Data.Session).RefIndexOpen(viewer).IrisUser
+		Do ##class(OcuTalon.Test.Install.RolesAssign).RemoveRole(viewerUser, "OcuTalonUser")
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Data.Fixture).GiveRole(viewerUser, "OcuTalonViewer"), "the first account is a viewer's")
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Data.Fixture).SetAccount(##class(OcuTalon.Data.Session).RefIndexOpen(disabled).IrisUser, 0, ""), "the second account is disabled")
+		Set code1 = ..NewCode(viewer, .hash1)
+		Set code2 = ..NewCode(disabled, .hash2)
+		Set code3 = ..NewCode(ok, .hash3)
+		Set headers = ..HeaderMark()
+		Set audit = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+		Set live = ..LiveMark()
+		Do ..Send(..PrivateMessage(viewerChat, "Zqviewer", "/start "_code1))
+		Do ..Send(..PrivateMessage(disabledChat, "Zqdisabled", "/start "_code2))
+		Do $$$AssertTrue(..Handled(), "TelegramIn handled both codes")
+		Do ..AssertTexts(viewerChat, [(..#BAD)], "the viewer's chat gets the bad-code reply")
+		Do ..AssertTexts(disabledChat, [(..#BAD)], "the disabled account's chat gets the bad-code reply")
+		For chat = viewerChat, disabledChat {
+			Do $$$AssertTrue(..ChatRow(chat, .chatRef, .linked, .stored), chat_": the chat has a row")
+			Do $$$AssertEquals(linked_"|"_stored, "|", chat_": with no session and no name")
+		}
+		Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).ForCode(hash1).CodeUsedAt_"|"_##class(OcuTalon.Data.Pairing).ForCode(hash2).CodeUsedAt, "|", "both codes are still unused")
+		Do $$$AssertEquals($Length(..RowsText("SELECT Type FROM OcuTalon_Live.Event WHERE %ID > ? AND Type = 'pairing'", live)), 0, "no pairing event reached any stream")
+		Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(audit, "OcuTalon", "Pairing", "Pairing", "", "", 2, ..#WAIT)
+		Set seen = ""
+		For i = 0:1:entries.%Size() - 1 {
+			Set seen = seen _ $Select(seen = "": "", 1: ",") _ entries.%Get(i).data.change _ ":" _ entries.%Get(i).data.reason _ ":" _ entries.%Get(i).data.channel
+		}
+		Do $$$AssertEquals(seen, "rejected:not_user:telegram,rejected:not_user:telegram", "two rejected Pairing entries on telegram, with the reason not_user")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(audit, , , , "Zqviewer").%Size() + ##class(OcuTalon.Test.Bridge.AuditLog).Entries(audit, , , , viewerChat).%Size(), 0, "and none holds the chat id or the name")
+		Set notices = ..Notifications(headers)
+		Do $$$AssertEquals(notices.%Size(), 2, "TelegramIn sent two Notifications to Notify")
+		For i = 0:1:notices.%Size() - 1 {
+			Do $$$AssertEquals(notices.%Get(i).catalogKey_"|"_notices.%Get(i).sessionRef, "pairing.badCode|", "notice "_(i + 1)_" is pairing.badCode with no session")
+		}
+		Do ..Send(..PrivateMessage(okChat, "Zqok", "/start "_code3))
+		Do $$$AssertTrue(..Handled(), "TelegramIn handled the control's code")
+		Do $$$AssertTrue(..WaitLinked(okChat, ok), "control: the chat of an account that may chat is paired with its session")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the not-user pairing test failed: "_..Safe(ex))
 	}
 	Do ..Ending()
 }

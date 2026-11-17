@@ -157,7 +157,7 @@ Method Connect() As %Boolean [ Private ]
 		Do $$$AssertTrue(0, "A credential "_..#CREDENTIAL_" exists: this class runs on a stack with no mailbox connected")
 		Quit 0
 	}
-	Set ..Owner = ..Session("owner")
+	Set ..Owner = ..ChatSession("owner")
 	Set ..Found = $ListBuild(##class(OcuTalon.Data.StatusMark).Get("emailPoll"), ##class(OcuTalon.Data.Setting).KeyIndexExists("email.address"), ##class(OcuTalon.Data.Setting).Get("email.address"), ##class(OcuTalon.Data.Setting).KeyIndexExists("email.owner"), ##class(OcuTalon.Data.Setting).Get("email.owner"))
 	Set ..Connected = 1
 	Set dummy = "Zz-page-"_..Number_"-"_$Random(1000000)
@@ -234,8 +234,31 @@ Method User(name As %String, paired As %Boolean, Output session As %String, Outp
 	Quit ##class(OcuTalon.Data.Session).RefIndexOpen(session).IrisUser
 }
 
-/// Pairs the chat with the session through the real /start path; 1 when the chat's row is linked to the session.
+/// Pairs the chat with the session through the real /start path; 1 when the chat's row is linked to the session. Pair refuses a session whose user may not chat, as the process's own user may
+/// not: such a session belongs to a fixture account that holds OcuTalonUser (Fixture.ChatSession) while /start pairs it, and to its own user again afterwards.
 Method Pair(session As %String, chatId As %String, name As %String) As %Boolean [ Private ]
+{
+	Set owner = ##class(OcuTalon.Data.Session).RefIndexOpen(session).IrisUser
+	Set borrowed = '##class(OcuTalon.Core.Access).MayChat(owner)
+	If borrowed {
+		Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).ChatSession("zzpr"_..Number_"pair", "OcuTalonUser", .account)
+		Do ..Reown(session, account)
+	}
+	Set linked = ..PairAs(session, chatId, name)
+	If borrowed Do ..Reown(session, owner)
+	Quit linked
+}
+
+/// Makes the fixture session belong to the IRIS user.
+Method Reown(session As %String, user As %String) [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+	Set row.IrisUser = user
+	Do $$$AssertStatusOK(row.%Save(), "the session belongs to "_user)
+}
+
+/// The /start of the chat with a new code of the session, waited for.
+Method PairAs(session As %String, chatId As %String, name As %String) As %Boolean [ Private ]
 {
 	Set code = "zzpr"_##class(OcuTalon.Bridge.Ids).NewRef()
 	Set expires = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)

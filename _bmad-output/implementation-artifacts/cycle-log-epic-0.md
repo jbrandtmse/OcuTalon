@@ -1082,10 +1082,24 @@
 2026-11-16T18:18:59Z	DW-1421	public_text_approved	bridge-guide (a),(c) verbatim; (b) replaced by the Planner text; test-bridge-guide rule confidencetext pins the three lines (mutation red); ledger=DW-1438(LOW CLOCKTIME quotes a date-time)
 2026-11-16T18:27:19Z	DW-1421	fresh_check	round=3 env=bb8e4da08(+docs/records/guide-test) shard_lane-a@Eval_fwd=24/24(413s) rev=24/24(312s) test-bridge-guide=all_pass boundaries=pass torn_down
 2026-11-16T18:27:19Z	DW-1421	pushed	round=3 runners=8_free main_ci=none_queued release_pr=none
+2026-11-17T00:30:50Z	Story 0.38	chartered	by=lead(Planner_dispatch_~00:30Z_Nov_17;DW-1284) branch=OCT-epic0-dw1284(from_b2768afeb)
+2026-11-17T00:30:50Z	Story 0.38	stage_spawned	stage=plan spawn_at=2026-11-17T00:30:50Z model=opus effort=high
+2026-11-17T00:40:12Z	Story 0.38	story_created	spawn_at=2026-11-17T00:32:00Z model=opus build_status=ready-for-dev warnings=oversized,depends-on-27.3
+2026-11-17T00:40:12Z	Story 0.38	spec_validated	gate=planner_pending(email_check_in_Channel.Email.In_not_Conversation(AC1_wording);not_user_record_reuses_Channel.Slack.Ignored;pair-time_not_user_outcome_answers_existing_pairing.badCode;email_has_no_per-person_link;depends_on_27.3_MayChat)
+2026-11-17T00:41:29Z	Story 0.38	spec_gate_ruled	source=<coordination>/prompts/story-038-dw1284-rulings-20261117.md approved(build_after_27.3) items=AC1_corrected,Channel.Refused_neutral_class,pair_badCode,mailbox_save_refusal(PUBLIC_TEXT_to_Planner),telegram_file_checked_before_download
+2026-11-17T00:42:13Z	Story 0.38	public_text_approved	item4=mailbox_save_not_user(verbatim_in_spec) status=draft(re-plan_after_27.3_merges_and_feature_green)
+2026-11-17T01:36:30Z	Story 0.38	scope_added	source=rulings_~02:05Z(DW-1465_disabled/expired_in_MayChat,DW-1466_predicate_to_Core.Access,Channel.Refused_move) release_blocker=any_release_with_an_Epic_27_story(epics.md+spec)
 2026-11-16T19:14:41Z	DW-1421	ci_flake	round=3 sha=3e3627c5f run=43928987062 job=iris(production) runner=ocutalon-ci-3 DW-306_row21 rerun_failed=1
 2026-11-16T19:48:15Z	DW-1421	ci_green	round=3 sha=3e3627c5f ci.yml=43928987062_attempt2_success(att1_DW-306_row21_ocutalon-ci-3) lane-a=43928987136_success at=19:48Z part_ready=sent
 2026-11-16T21:58:50Z	DW-1421	round4_done	by=lane-D(lead) commit=c726d5fd4 tests=ReplyCheck,Payload,Capture,Decide(warm_e0r4,green) eval-set=28/28_rules(capture_rerun_green_after_a_contended_run) mutations=Data_logged->ReplyCheck_red;old_CLOCKTIME->Payload_red;bare_time_missed->Payload_red model_facing=none
 2026-11-16T22:08:22Z	DW-1421	round4_addition	#9404->unexpected-field(ReplyCheck_row_8b;Payload_row_13;Capture) ledger=LOW_C2_item tests=ReplyCheck,Payload,Capture,Decide(warm_e0r4b,green) mutation=old_9404_words->ReplyCheck_rows_8,8b_red superseded_ci=43965489398,43965489389(cancelled)
+2026-11-17T06:41:34Z	Story 0.38	re-planned	on_720467ed5(27.3) build_status=ready-for-dev gate=planner(Shell_cannot_call_Core:AD-3_public_package;RolesMayChat+MayChat_names;Security.Users_read_needs_%SYS_switch(AD-3_amend);Lane_A_Telegram/In.cls_for_file_check(AD-33))
+2026-11-17T06:48:34Z	Story 0.38	spec_validated	gate=approved(4_points;conditions_i-iv;ChatSession_cleanup_on_failure_pinned) 
+2026-11-17T06:48:34Z	Story 0.38	stage_spawned	stage=implement spawn_at=2026-11-17T06:48:34Z model=sonnet effort=high
+2026-11-17T14:56:26Z	Story 0.38	implement_done	commit=ca3a34e5a build_status=done review=31(3_MED_patched,5_LOW,2_deferred:DW-1482,DW-1483) followup_review_recommended=true lead_check=live:slack-hook_re-run_green_after_patches(e038l)
 2026-11-17T03:01:08Z	Story 0.40	chartered	by=lead(Planner_GO;DW-1449_test_isolation) branch=OCT-epic0-dw1449(from_5f1996ed6) edits=Purge_test_isolation+counts+product_pin,security-overview+release-sequence_pin
 2026-11-17T03:11:15Z	Story 0.40	verified	Purge_green;Data_shard_5/5(3_under_load_30);test-release-sequence_27/27;class-rules
 2026-11-17T04:13:20Z	Story 0.40	proof_added	TestDigestTickInsideThePurge green(e040p) mutation(no_Sent_row)->red(e040n)
+2026-11-17T16:19:03Z	Story 0.38	dw1482_chartered	Planner_ruling_~16:20Z(fix_before_merge) spec=spec-0-38b-dw-1482-telegram-answers-check-account-state.md
+2026-11-17T16:19:03Z	Story 0.38	stage_spawned	stage=implement(DW-1482) spawn_at=2026-11-17T16:19:03Z model=sonnet effort=high
+2026-11-17T16:59:13Z	Story 0.38	dw1482_done	commit=f4549a262 tests=targeted_14_classes_green mutations=6_red review=31(4_patched,2_deferred)

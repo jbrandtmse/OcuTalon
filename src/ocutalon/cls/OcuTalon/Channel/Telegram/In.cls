@@ -38,7 +38,8 @@ Include Ensemble
 ///   - A button press of a private chat (Story 12.7; AD-11, AD-32) is recorded like a message, and its data is split at the first ":" into
 ///     the action and the request's Ref. AnswersIn.FromTelegram(Ref, action, the chat row's Ref) is called synchronously with the chat's
 ///     Ref, never its id, and the press is then answered once with answerCallbackQuery {callback_query_id, text, show_alert}, the text
-///     being Catalog.Render for the channel telegram (the one render outside an *Out operation, AD-32) of the code it gave:
+///     being Catalog.Render for the channel telegram (the one render outside an *Out operation, AD-32) of the code it gave (an answer that AnswersIn refuses because the paired user's account is not usable, DW-1482,
+///     is not_allowed with {"account": true}: it is answered as every not_allowed is, and leaves one Channel.Refused {telegram, not_user} to Intake):
 ///       - approved: press.approved, or no text when the answer has no count slot (a request with no dry run); rejected: press.rejected;
 ///       - already_answered: answered.alreadyApproved, or answered.alreadyRejected when the winner rejected, and expired: answered.expired,
 ///         both with show_alert, as are not_paired and not_visible (press.notPairedChat) and unknown (press.unavailable);
@@ -47,8 +48,9 @@ Include Ensemble
 ///   - The Got it press (Story 17.6): the action gotit and the Ref of a tell-now notice (the Ref of its Decision). Msg.Command.GotIt {Ref, Channel
 ///     telegram, SessionRef} is submitted through Commands.Submit with origin telegram only when all of these hold: the chat row is paired (it has a
 ///     session), the Ref is a reference, the paired session has a telegram Delivery row for that Ref (Ownership.DeliveryByRef), and the chat of that row's
-///     message id is the pressing chat. Any other press submits nothing. Every Got it press is answered with answerCallbackQuery and no text, so the
-///     press adds no text of its own; a failed Submit is one warning.
+///     message id is the pressing chat, and the paired session's IRIS user's account is usable now (Core.Access AccountUsable, Enabled and not past its ExpirationDate; DW-1482). Any other press submits nothing;
+///     a press that fails only the account check leaves one Channel.Refused {telegram, not_user} to Intake (Refused) and nothing else is done: nothing is marked handled and nothing is resent. Every Got it press is
+///     answered with answerCallbackQuery and no text, so the press adds no text of its own; a failed Submit is one warning.
 ///     When that Delivery row is of the kind page (Story 23.4), the press submits Msg.Command.AckPage {Ref, Channel telegram, SessionRef} instead, under the same checks.
 ///   - A turn takes the steps of WebChatIn.Accept (AD-20, AD-26, AD-30) for the session that the chat was paired with when its row was
 ///     read: the session's row must exist (else one warning and nothing sent); Allowance.TryConsume is asked with the channel telegram.
@@ -67,7 +69,9 @@ Include Ensemble
 ///     (3) Core.Files.Readable() is 1 from Story 25.6 (Agent.Input READSFILES), so the file goes on to steps (4) to (6) and then to Conversation, which reads it as it reads a web
 ///     file. Only when it is 0 (a test's reader seam) is nothing fetched or stored and the chat answered files.noReader, which is Core.Files' reply to a file turn with no reader,
 ///     so that the web chat and Telegram do not differ. A part with no file_id is files.unreadable with the reason of Docs.Extract.Reason("failed"). (4) Turn checks the
-///     session row and the allowance as for a text turn (the caption is the text), so that a message the allowance refuses costs no download (DW-1340). (5) getFile for the file_id (the
+///     session row, then that the session's IRIS user may chat now (Core.Access MayChat on the row's IrisUser; Story 0.38), then the allowance as for a text turn (the caption is the text), so that a
+///     message the allowance refuses costs no download (DW-1340). A user who may not chat gets nothing: no allowance entry, no getFile, no download, nothing stored, no reply and no Item, and one
+///     Channel.Refused {telegram, not_user} goes to Intake in a trace session of its own, a failed send being one fixed warning (LOGREFUSED). A text turn is not checked here: Conversation checks it. (5) getFile for the file_id (the
 ///     last, largest photo size), then Api.Download of the file_path it answers, which stops at FILEMAX bytes and at DOWNLOADSECONDS; a failure of either is one warning (no URL, path or
 ///     token) and files.unreadable with the reason of Docs.Extract.Reason("failed"); a download over the limit is files.tooLarge. (6) Core.Files.Store with channel telegram, the
 ///     document's file_name (a photo has none), which refuses too_large, empty or wrong_type as files.tooLarge or files.unreadable with Core.Files' reasons. A refusal in steps 5 and 6
@@ -154,6 +158,8 @@ Parameter LOGPRESSTEXT = "TelegramIn could not render the answer to a button pre
 
 Parameter LOGGOTIT = "TelegramIn could not submit a Got it press: ";
 
+Parameter LOGREFUSED = "TelegramIn could not record a file whose sender may not chat.";
+
 Parameter LOGNOTALLOWED = "TelegramIn's chat may not answer this kind of request, so the button press was answered with no text.";
 
 /// The item that takes every turn's Item.
@@ -161,6 +167,9 @@ Parameter TARGET = "Conversation";
 
 /// The item that takes the allowance notice and the pairing replies.
 Parameter NOTIFY = "Notify";
+
+/// The item that takes the record of a refused file (Channel.Refused), which it drops silently.
+Parameter INTAKE = "Intake";
 
 /// The channel of the Items this service sends: one of Msg.Enum CHANNEL.
 Parameter CHANNEL = "telegram";
@@ -416,28 +425,42 @@ Method Press(chatRef As %String, query As %DynamicObject) [ Private ]
 	Set code = "unknown", slots = {}
 	Set sc = $$$OK
 	Try {
-		Set sc = ##class(OcuTalon.Core.AnswersIn).FromTelegram(approvalRef, action, chatRef, .code, .slots)
+		Set sc = ..FromTelegram(approvalRef, action, chatRef, .code, .slots)
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
-	Set text = "", alert = 0
+	Set text = "", alert = 0, refused = 0
 	If $SYSTEM.Status.IsError(sc) {
 		$$$LOGWARNING(..#LOGPRESS_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
 	} Else {
+		Set refused = (code = "not_allowed") && +slots.%Get("account")
 		If code = "approved" Do ..FixSlots(chatRef, approvalRef, slots)
 		Set text = ..PressText(code, slots, .alert)
 	}
 	Do ..AnswerPress(query, text, alert)
+	If refused Do ..Refused()
+}
+
+/// The one call of AnswersIn FromTelegram. Private; a test subclass overrides it.
+Method FromTelegram(ref As %String, action As %String, chatRef As %String, Output code As %String, Output slots As %DynamicObject) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Core.AnswersIn).FromTelegram(ref, action, chatRef, .code, .slots)
 }
 
 /// Submits the Got it command of a press when the press is allowed (see the class comment): the chat is paired, the Ref is a reference, and the
-/// paired session's telegram Delivery row for the Ref belongs to the pressing chat. Any other press submits nothing.
+/// paired session's telegram Delivery row for the Ref belongs to the pressing chat and the session's IRIS user's account is usable (AccountUsable). Any other press submits nothing; one that fails
+/// only the account check leaves one Refused.
 Method GotIt(chatRef As %String, decisionRef As %String) [ Private ]
 {
 	Set chat = ##class(OcuTalon.Data.Pairing).Chat(chatRef)
 	If '$IsObject(chat) || (chat.SessionRef = "") || '##class(OcuTalon.Bridge.Approval).IsRef(decisionRef) || '##class(OcuTalon.Bridge.Approval).IsRef(chat.SessionRef) Quit
 	Set row = ##class(OcuTalon.Data.Ownership).DeliveryByRef(decisionRef, ..#CHANNEL, chat.SessionRef, .sc)
 	If $SYSTEM.Status.IsError(sc) || '$IsObject(row) || ($Piece(row.ChannelMessageId, ":", 1) '= chatRef) Quit
+	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(chat.SessionRef)
+	If '##class(OcuTalon.Core.Access).AccountUsable($Select($IsObject(session): session.IrisUser, 1: "")) {
+		Do ..Refused()
+		Quit
+	}
 	If row.Kind = ##class(OcuTalon.Watch.Paging).#KIND {
 		Set page = ##class(OcuTalon.Msg.Command.AckPage).%New()
 		Set page.Ref = decisionRef
@@ -791,7 +814,8 @@ Method Readable() As %Boolean [ Private ]
 
 /// A paired chat's text as the session's turn, in the steps of WebChatIn.Accept (see the class comment). The service's %SessionId and
 /// %SuperSession are "" again, and the job's session id, which the event log reads, is cleared, when the method ends,
-/// also after an exception, which it then raises to the caller. With upload (a paired chat's file: {ref, the chat row's Ref; fileId; name}, from File) the text is the caption, and only
+/// also after an exception, which it then raises to the caller. With upload (a paired chat's file: {ref, the chat row's Ref; fileId; name}, from File) the text is the caption; after the session
+/// row is read, a session whose user may not chat now (MayChat) is refused with Refused and nothing else, so that no allowance entry is taken and nothing is fetched or stored; and only
 /// after the allowance took the message is the file fetched and stored (Stored), so that a message the allowance refuses, or one with no session row, costs no download (DW-1340). A
 /// file that Stored refuses is answered to the chat (Refuse), gives the allowance entry back (Refund) and sends no Item; a stored one makes the Item untrusted with the four file fields
 /// (Core.Files.SetItem), and the stored file is discarded on every path that sends no Item.
@@ -804,6 +828,8 @@ Method Turn(sessionRef As %String, text As %String, upload As %DynamicObject = "
 		Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef)
 		If '$IsObject(session) {
 			$$$LOGWARNING(..#LOGNOSESSION)
+		} ElseIf $IsObject(upload) && '..MayChat(session.IrisUser) {
+			Do ..Refused()
 		} ElseIf '..Allowed(sessionRef, ..#CHANNEL, text, .retryAt, .firstRefusal) {
 			If retryAt = "" {
 				$$$LOGWARNING(..#LOGBUSYALLOWANCE)
@@ -877,6 +903,36 @@ Method Notice(session As OcuTalon.Data.Session, retryAt As %String) [ Private ]
 Method SendTurn(item As OcuTalon.Msg.Item) As %Status [ Private ]
 {
 	Quit ..SendRequestAsync(..#TARGET, item)
+}
+
+/// 1 when the IRIS user may chat now: the one call of Core.Access MayChat in this class. Private; a test subclass overrides it to record the call.
+Method MayChat(irisUser As %String) As %Boolean [ Private ]
+{
+	Quit ##class(OcuTalon.Core.Access).MayChat($Get(irisUser))
+}
+
+/// The one record of a refused file or press (a user whose account is not usable): a Channel.Refused {telegram, not_user} sent to Intake, in a trace session of its own. A failed send is one fixed warning. Nothing else is done.
+Method Refused() [ Private ]
+{
+	Set refused = ##class(OcuTalon.Channel.Refused).%New()
+	Set refused.Channel = ..#CHANNEL
+	Set refused.Reason = "not_user"
+	Set ..%SessionId = ""
+	Set ..%SuperSession = ""
+	Kill $$$JobSessionId
+	Set sc = $$$OK
+	Try {
+		Set sc = ..SendRefused(refused)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $SYSTEM.Status.IsError(sc) $$$LOGWARNING(..#LOGREFUSED)
+}
+
+/// The one send of a Refused record to Intake, asynchronously. Private; a test subclass overrides it.
+Method SendRefused(record As OcuTalon.Channel.Refused) As %Status [ Private ]
+{
+	Quit ..SendRequestAsync(..#INTAKE, record)
 }
 
 /// The one send to Notify, asynchronously. Private; a test subclass overrides it.

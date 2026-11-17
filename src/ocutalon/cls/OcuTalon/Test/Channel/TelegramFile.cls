@@ -20,6 +20,9 @@ Include Ensemble
 ///   - TestNoReader (Planner ruling H2): with the probe's reader forced to 0 (the gated path), a document and a photo get files.noReader with the file's name, no getFile, no download, no row and no Item, and the size check still comes first;
 ///   - TestNotSent (matrix "Telegram not sent"; DW-1340): an allowance refusal and a session with no row fetch nothing and store nothing, and a failed send gives no Item, discards the stored file
 ///     and gives the entry back;
+///   - TestRefusedSenderFileNotFetched (Story 0.38, T6): the document and the photo of a paired chat whose session's user may not chat (a viewer-only account, an admin-only one, a disabled one, one past its
+///     expiry) cost nothing: the mock got no call (no getFile, no download), no SentFile row exists, the allowance was not asked, no reply goes to Notify and no Item to Conversation, and the one send is a
+///     Channel.Refused {telegram, not_user} to Intake, in a trace session of its own; a failed send of it is one fixed warning, and the product's own SendRefused (not the probe's) sends it to the target Intake; the same document of an account that may chat (control) is fetched;
 ///   - TestRenders (AC5): the texts of the files.* keys for the channel telegram are those of Core.Files and Docs.Extract;
 ///   - TestDownloadApi (conditions 2 and 3): Api.Download refuses a path that is not one getFile answers, with an error text that names no value; and its error texts, and the event log, audit entries and Ensemble messages after every test, hold no token,
 ///     no "file/bot" and no file path;
@@ -92,10 +95,10 @@ Method Go() As %Boolean [ Private ]
 	Quit 1
 }
 
-/// A fixture session, kept for the clean-up.
+/// A fixture session of a real account that holds OcuTalonUser (Fixture.ChatSession), kept for the clean-up.
 Method Session(name As %String) As %String [ Private ]
 {
-	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zztgfile"_..Number_name)
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zztgfile"_..Number_name, "OcuTalonUser", .user)
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
 	Quit ref
 }
@@ -605,6 +608,64 @@ Method TestNotSent()
 		}
 	} Catch ex {
 		Do $$$AssertTrue(0, "the not-sent test failed: "_..Safe(ex))
+	}
+}
+
+/// T6: a file of a chat whose session's user may not chat is refused before anything is fetched or stored (see the class comment).
+Method TestRefusedSenderFileNotFetched()
+{
+	If '..Go() || '..Ready() Quit
+	Try {
+		Set bytes = ..Bytes($ClassMethod(..#SAMPLES, "PdfText", "zz0.38 refused"))
+		Set fileId = "zzRefused"_..Number
+		Set cases = $ListBuild($ListBuild("viewer", "OcuTalonViewer", 1, ""), $ListBuild("adminonly", "OcuTalonAdmin", 1, ""), $ListBuild("disabled", "OcuTalonUser", 0, ""), $ListBuild("expired", "OcuTalonUser", 1, -2), $ListBuild("control", "OcuTalonUser", 1, ""))
+		Set position = 0
+		While $ListNext(cases, position, case) {
+			Set name = $List(case, 1)
+			Set ref = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zztgfile"_..Number_"r"_name, $List(case, 2), .user)
+			Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
+			Do $$$AssertStatusOK(##class(OcuTalon.Test.Data.Fixture).SetAccount(user, $List(case, 3), $List(case, 4)), name_": the account state is set")
+			For kind = "document", "photo" {
+				Kill ^OcuTalonTest("TelegramInProbe", ..Number)
+				Do ##class(OcuTalon.Test.Channel.BotApi).Reset()
+				Do $$$AssertTrue(..Register(fileId, "documents/zzrefused"_..Number_".pdf", "application/pdf", bytes), name_" "_kind_": a file is registered, which a call would fetch")
+				Set message = $Select(kind = "document": ..DocumentMessage(fileId, "r.pdf", $Length(bytes), "c"), 1: ..PhotoMessage(fileId, fileId, "c"))
+				Set probe = ..NewProbe()
+				Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+				Do probe.RunFile("zzchatref", ref, message)
+				If name = "control" {
+					Do $$$AssertEquals(..Called(), "getFile,download", name_" "_kind_": control: the file of an account that may chat is fetched")
+					Do $$$AssertEquals(..Targets(), "allowed|Conversation", name_" "_kind_": and sent as an Item")
+				} Else {
+					Do $$$AssertEquals(..Called(), "", name_" "_kind_": the mock got no call: no getFile and no download")
+					Do $$$AssertEquals(..Rows(ref), 0, name_" "_kind_": nothing is stored")
+					Do $$$AssertEquals(..Targets(), "Intake", name_" "_kind_": no allowance entry, no reply and no Item: the one send is the record for Intake")
+					Do $$$AssertEquals(..Call(1, "class")_"|"_..Call(1, "channel")_"|"_..Call(1, "reason"), "OcuTalon.Channel.Refused|telegram|not_user", name_" "_kind_": a Channel.Refused of channel telegram with the reason not_user")
+					Do $$$AssertEquals(..Call(1, "sessionId")_"|"_..Call(1, "superSession"), "|", name_" "_kind_": in a trace session of its own")
+					Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .warning, "Refused", ##class(OcuTalon.Channel.Telegram.In).#LOGREFUSED), 0, name_" "_kind_": and the fixed warning of a failed send is not logged")
+				}
+			}
+		}
+		Kill ^OcuTalonTest("TelegramInProbe", ..Number)
+		Do ##class(OcuTalon.Test.Channel.BotApi).Reset()
+		Set ref = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zztgfile"_..Number_"rfail", "OcuTalonViewer")
+		Set ..Refs = ..Refs_","_ref
+		Set probe = ..NewProbe()
+		Set probe.FailRefused = 1
+		Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+		Do probe.RunFile("zzchatref", ref, ..DocumentMessage(fileId, "r.pdf", $Length(bytes), "c"))
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .warning, "Refused", ##class(OcuTalon.Channel.Telegram.In).#LOGREFUSED), 1, "a failed send of the record is one fixed warning")
+		Do $$$AssertEquals(..Targets()_"|"_..Called(), "Intake|", "and still nothing is fetched or sent")
+		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "Refused", "TelegramIn could not")
+		Kill ^OcuTalonTest("TelegramInProbe", ..Number)
+		Set probe = ..NewProbe()
+		Set probe.RealRefused = 1
+		Do probe.RunFile("zzchatref", ref, ..DocumentMessage(fileId, "r.pdf", $Length(bytes), "c"))
+		Do $$$AssertEquals(..Targets(), "Intake", "the product's own SendRefused sends one request, to the target Intake")
+		Do $$$AssertEquals(..Call(1, "class")_"|"_..Call(1, "channel")_"|"_..Call(1, "reason"), "OcuTalon.Channel.Refused|telegram|not_user", "and it is the Channel.Refused of channel telegram with the reason not_user")
+		Do $$$AssertEquals(..Call(1, "sessionId")_"|"_..Call(1, "superSession"), "|", "in a trace session of its own")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the refused-sender test failed: "_..Safe(ex))
 	}
 }
 

@@ -2,7 +2,7 @@
 /// STACKS AND IN CI ONLY (Rule 21), against the CI mock and its dummy token, like OcuTalon.Test.Channel.LiveCase, which they extend: BeginPairing
 /// starts TelegramIn and TelegramOut with the Telegram seam on. A proposal is the real one: a ProposePersona submitted through
 /// Commands.Submit inside a bridge context of the session (so its origin is tool), carried out by the real SettingsOps item, which raises the
-/// request through the bridge, whose hold sends the outcome back to SettingsOps. The sessions belong to this process's user, as a page's session
+/// request through the bridge, whose hold sends the outcome back to SettingsOps. The sessions are made for a fixture account that holds OcuTalonUser, so that /start pairs them, and then belong to this process's user, as a page's session
 /// must (Ownership.SessionRef), and the raised request's RequiredRole is set to a role that this user holds (the bridge's own role rule is
 /// not under test). The chats are paired through the real /start path, and a Telegram press is a callback_query update that the mock hands to
 /// TelegramIn.
@@ -126,16 +126,22 @@ Method Tidy() [ Private ]
 	Set ..Owners = ""
 }
 
-/// A fixture session (zzpansw...) of this process's user; its Ref. It is paired by the caller and removed by Tidy.
+/// A fixture session (zzpansw...), which belongs to a fixture account that holds OcuTalonUser so that /start can pair it (Pair refuses a session whose user may not chat, as this process's user may
+/// not); its Ref. The caller pairs it and then gives it this process's user (Reown) for the web and approval calls, which are the page's; Tidy removes it with its account.
 Method WebSession() As %String [ Private ]
 {
 	Set ref = ..NewSession("zzpansw")
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
+	Set ..Owners = ..Owners_$Select(..Owners = "": "", 1: ",")_ref
+	Quit ref
+}
+
+/// Makes the fixture session belong to this process's user, which holds the role that the proposed requests name and which the page's calls resolve the session for.
+Method Reown(ref As %String) [ Private ]
+{
 	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
 	Set row.IrisUser = $Username
 	Do $$$AssertStatusOK(row.%Save(), "the fixture session belongs to "_$Username)
-	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_##class(OcuTalon.Test.Data.Fixture).Adopt(row)
-	Set ..Owners = ..Owners_$Select(..Owners = "": "", 1: ",")_ref
-	Quit ref
 }
 
 /// A session paired with the chat through the real /start path, and the confirmation that the chat gets waited for; the session's Ref.
@@ -143,6 +149,7 @@ Method Paired(chatId As %String, name As %String) As %String [ Private ]
 {
 	Set session = ..WebSession()
 	Do $$$AssertTrue(..PairChat(chatId, name, session), "chat "_chatId_" is paired with its session")
+	Do ..Reown(session)
 	Do $$$AssertEquals(..TextsAfter(chatId, 1).%Size(), 1, "the chat got its confirmation")
 	Quit session
 }

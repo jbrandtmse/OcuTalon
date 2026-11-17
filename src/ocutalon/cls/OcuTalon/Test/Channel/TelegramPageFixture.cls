@@ -362,15 +362,16 @@ ClassMethod Send(chatId As %String, name As %String, text As %String, Output que
 	Quit ""
 }
 
-/// Makes a fixture session of its own (zztgmove<n>), stores a code for it (600 s) and Sends "/start <code>" from the chat, so that the chat
+/// Makes a fixture session of its own (zztgmove<n>, of a real account that holds OcuTalonUser), stores a code for it (600 s) and Sends "/start <code>" from the chat, so that the chat
 /// pairs with that session. Finish removes the session and the code row. Returns "" when the update was queued, or the reason it was not.
 ClassMethod Move(chatId As %String, name As %String, Output queuedAt As %Integer) As %String
 {
 	Set queuedAt = 0
 	Try {
 		Set number = $Increment(^OcuTalonTest("TelegramLive", "n"))
-		Set session = ##class(OcuTalon.Data.Session).ForUser("zztgmove"_number, .sc)
-		If $$$ISERR(sc) Return "the fixture session could not be made: "_$SYSTEM.Status.GetErrorText(sc)
+		Set ref = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zztgmove"_number, "OcuTalonUser")
+		Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+		If '$IsObject(session) Return "the fixture session could not be made"
 		Set code = "zzmove"_##class(OcuTalon.Bridge.Ids).NewRef()
 		Set expires = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
 		Set sc = ##class(OcuTalon.Data.Pairing).StoreCode(session.Ref, ##class(OcuTalon.Data.Pairing).HashCode(code), expires)

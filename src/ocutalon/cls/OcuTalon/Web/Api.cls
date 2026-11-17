@@ -52,7 +52,7 @@
 ///     secret://handoff/<name> goes in the SaveSettings command's body, so no secret, mailbox address or user name of the save (Story 21.14) is in its command, a message or a log;
 ///     incoming, outgoing, signIn, clientId and origin stay plain. The body also gets origin, the http or https
 ///     origin of the request (PageOrigin), from which SettingsOps makes the OAuth2 redirection endpoint. After the submit returns, whatever it answered, every untaken
-///     secret is discarded. The answers are those of Answer, with not_available 409.
+///     secret is discarded. The answers are those of Answer, with not_available 409 and not_user 409 (the Message of the result, which is the one sentence of SettingsOps MESSAGEEMAILNOTUSER).
 ///     POST /v1/settings/channels/sign-in (Story 21.3; AD-1) takes exactly {"action": "start"|"check"} (anything else is 400 bad_settings with fields ["action"]) and
 ///     submits one MailSignIn (origin web_admin, the IRIS user of the call, the CSP session's Ref, PageOrigin): start answers 200 {"result":"started","url"}, the address
 ///     that opens IRIS's authorization flow in a new tab, and check 200 {"result":"checked","signedIn"}; a client that is not registered is 400 bad_settings with
@@ -1197,7 +1197,8 @@ ClassMethod SaveDemoMode() As %Status
 }
 
 /// The answer to a save from the CommandResult (word is "on" or "off" for a demo mode save): Ok is 200 {"result":"done","sections"} with the
-/// sections read fresh; refused is 400 bad_settings with the refused fields (Data); not_built is 501; not_available is 409; step_failed is 409 demo_step_failed; no result,
+/// sections read fresh; refused is 400 bad_settings with the refused fields (Data); not_built is 501; not_available is 409; not_user is 409 not_user with the result's Message (the mailbox save of a
+/// session whose user may not chat); step_failed is 409 demo_step_failed; no result,
 /// not_audited, failed, unknown_command and any other outcome are 500 server_error.
 ClassMethod Answer(result As OcuTalon.Msg.CommandResult, word As %String) As %Status [ Private ]
 {
@@ -1223,6 +1224,7 @@ ClassMethod Answer(result As OcuTalon.Msg.CommandResult, word As %String) As %St
 	}
 	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
 	If outcome = "not_available" Quit ..Fail(409, "not_available", ..#MESSAGENOTAVAILABLE)
+	If outcome = "not_user" Quit ..Fail(409, "not_user", result.Message)
 	If (outcome = "step_failed") && (word '= "") Quit ..Fail(409, "demo_step_failed", $Replace(..#MESSAGEDEMOSTEPFAILED, "{v}", word))
 	Quit ..ServerError($SYSTEM.Status.Error(5001, "The settings save was answered "_outcome))
 }

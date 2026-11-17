@@ -2,8 +2,8 @@ import { randomBytes } from 'node:crypto';
 
 import { expect, test, type Locator, type Page } from '../support/fixtures';
 
-import { README_ACCOUNT, envelope, signInOverHttp } from '../sign-in/helpers';
-import { signInReadmeLoaded } from '../support/floor';
+import { README_ACCOUNT, envelope, signIn, signInOverHttp } from '../sign-in/helpers';
+import { loadedAfter, signInReadmeLoaded } from '../support/floor';
 import { chk, fixtureUser, irisScript } from '../support/iris';
 
 /**
@@ -17,7 +17,9 @@ import { chk, fixtureUser, irisScript } from '../support/iris';
  *   - E1: a user without OcuTalonAdmin gets 403 not_admin from POST /v1/settings/channels, and nothing is offered to the hand-off, submitted or written;
  *   - E2: an admin fills the Email group in and saves: the page shows the saved text, GET /v1/settings shows passwordSet true and holds no password, a reload
  *     shows an empty password field and "Saved, and never shown again. Type a new value to replace it.", and EmailIn runs and has recorded a poll;
- *   - E3: an email item of the owner's mailbox reaches the owner's state and no other session's (isolation).
+ *   - E3: an email item of the owner's mailbox reaches the owner's state and no other session's (isolation);
+ *   - E8 (Story 0.38, M2): an admin who holds OcuTalonUser, signed in, whose IRIS account then expires, presses Save: the approved sentence shows under Save (announced, no field marked) and nothing is
+ *     written or left offered, and the spec's own account is removed after it.
  * Story 21.6 adds the Outgoing mail server (SMTP) field to E2: the admin types mock:1025 (the CI mock's SMTP stub), the saved text shows, GET shows `outgoing` and
  * `passwordSet` with no password, a reload shows the saved server, and EmailOut runs within 60 seconds; E1 posts the field as the LIVE fixture user (403).
  *   - E6 (Story 21.3): the sign-in with Google against the CI mock's fake authorization server. The LIVE fixture user gets 403 on the sign-in route (both actions) and on a
@@ -60,6 +62,11 @@ const sectionsNav = (page: Page): Locator => page.getByRole('navigation', { name
 /** Signs the README admin in and opens Settings > Channels. */
 async function openChannels(page: Page): Promise<void> {
   await signInReadmeLoaded(page);
+  await openChannelsPage(page);
+}
+
+/** Opens Settings > Channels of a signed-in admin. */
+async function openChannelsPage(page: Page): Promise<void> {
   await pagesNav(page).getByRole('link', { name: 'Settings', exact: true }).click();
   await sectionsNav(page).getByRole('link', { name: 'Channels', exact: true }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Channels' })).toBeVisible();
@@ -547,6 +554,64 @@ test('E7: the Email digest box shows once outgoing is saved, stores email, and S
   } finally {
     const put = await page.request.post(`${SETTINGS}/daily-digest`, { headers: envelope(), data: before });
     expect(put.status(), 'the digest channels are put back').toBe(200);
+    await removeMailbox();
+  }
+});
+
+/**
+ * E8 (Story 0.38, M2): the Save of a session whose user may no longer use the chat. The spec makes its own admin account (OcuTalonAdmin and OcuTalonUser), signs it in, lets its ExpirationDate pass by two days
+ * and presses Save with a valid form: the server answers 409 not_user, and the page shows that sentence, as the server wrote it, under Save and announces it, marks no field and shows no saved text; nothing is
+ * left offered to the hand-off, and no key or EmailOut row is written. The account and its session row are removed after the test.
+ */
+test('E8: an admin whose account expired during the session sees why Save changed nothing', async ({ page }) => {
+  const SENTENCE = "This mailbox would be yours, but you can't use the chat, so its email would never be read. An admin who can use the chat must connect it. Nothing was changed.";
+  const user = `zze2enu${randomBytes(4).toString('hex')}`;
+  const password = `Zq9-${randomBytes(10).toString('hex')}`;
+  await removeMailbox();
+  try {
+    const made = await irisScript(
+      [
+        'Zn "%SYS"',
+        `Set sc=##class(Security.Users).Create("${user}","OcuTalonAdmin,OcuTalonUser","${password}","e2e not_user fixture",,,,0,1)`,
+        'Write !,"CHK|made|",$SYSTEM.Status.IsOK(sc)',
+      ].join('\n'),
+    );
+    expect(chk(made, 'made'), 'the spec made its admin account').toBe('1');
+    await loadedAfter(page, () => signIn(page, user, password));
+    await openChannelsPage(page);
+    const group = page.locator('section[data-section="email"]');
+    await expect(group.getByRole('heading', { level: 3, name: 'Email', exact: true }), 'the Email group heading').toBeVisible();
+    const expired = await irisScript(
+      [
+        'Zn "%SYS"',
+        'Set p("ExpirationDate")=$ZDate(+$Horolog-2,3)',
+        `Set sc=##class(Security.Users).Modify("${user}",.p)`,
+        'Write !,"CHK|expired|",$SYSTEM.Status.IsOK(sc)',
+      ].join('\n'),
+    );
+    expect(chk(expired, 'expired'), 'the account is now past its expiry').toBe('1');
+    const before = await counts();
+    await group.getByLabel('Your email address', { exact: true }).fill('e2e-notuser@example.com');
+    await group.getByLabel('Incoming mail server (POP3)', { exact: true }).fill('mock:1110');
+    await group.getByLabel('User name', { exact: true }).fill('e2e');
+    await group.locator('#email-password').fill(`Zz-e2e-${randomBytes(9).toString('hex')}`);
+    await group.getByRole('button', { name: 'Save changes', exact: true }).click();
+    await expect(group.locator('#email-error'), 'the sentence shows under Save, exactly').toHaveText(SENTENCE);
+    await expect(page.locator('.cdk-live-announcer-element[aria-live="polite"]'), 'and is announced').toHaveText(SENTENCE);
+    await expect(group.locator('[aria-invalid="true"]'), 'no field is marked').toHaveCount(0);
+    await expect(group.locator('p.saved'), 'no saved text shows').toHaveCount(0);
+    expect(await counts(), 'nothing was left offered to the hand-off, and no key or EmailOut row was written').toMatchObject({ handoffs: before.handoffs, keys: before.keys, out: before.out });
+    expect(await emailOutRuns(), 'and EmailOut does not run').toBe('0');
+  } finally {
+    await irisScript(
+      [
+        'Zn "%SYS"',
+        `If ##class(Security.Users).Exists("${user}") Do ##class(Security.Users).Delete("${user}")`,
+        'Zn "OCUTALON"',
+        `Do ##class(%SQL.Statement).%ExecDirect(,"DELETE FROM OcuTalon_Data.Session WHERE IrisUser = ?","${user}")`,
+        'Write !,"CHK|dropped|1"',
+      ].join('\n'),
+    );
     await removeMailbox();
   }
 });

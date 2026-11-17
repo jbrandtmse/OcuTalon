@@ -4699,3 +4699,5 @@
 2026-11-17T16:17:42Z	Epic 0	owner_decision	via=contest_planner macOS allowance stands on DW-1482 head: if not acquired, merge on self-hosted+lane-a green; install-macos green on feature merge run before REQUIRED GREEN
 2026-11-17T17:35:34Z	Epic 0	ci_green_verified	0.38+DW-1482 f0c59e91f lane-a=44131977581 success; ci=44131977419 18/18 self-hosted success, install-macos cancelled (not acquired, GitHub macOS arm64 capacity, 0 steps) -> Planner allowance (after ~17:00Z): macOS must be green on feature merge run before REQUIRED GREEN
 2026-11-17T17:35:34Z	Epic 0	merge_enqueued	0.38 f0c59e91f OCT-epic0-dw1284 (6th of 6 for 1.0.13)
+2026-11-17T17:36:39Z	Epic 0	owner_decision	via=contest_planner 0.38 f0c59e91f MERGE APPROVED under macOS allowance; DW-1485, DW-1486 LOW deferred; final 0.38+DW-1482 release-note bullet worded (story-038-dw1482-rulings-20261117.md)
+2026-11-17T17:51:20Z	Epic 0	merged	0.38 f0c59e91f (DW-1284, DW-1465, DW-1466, DW-1482); 6 of 6 for 1.0.13 merged; pins 11/11, web 2266/0, lint PASS

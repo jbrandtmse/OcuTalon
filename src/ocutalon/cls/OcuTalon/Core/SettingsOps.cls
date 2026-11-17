@@ -890,6 +890,9 @@ Parameter MESSAGESECTIONNOTAUDITED = "OcuTalon couldn't write the audit entry, s
 /// The Message of an email save on the online demo (Public text P2).
 Parameter MESSAGEUNAVAILABLE = "Email can't be connected on the online demo. Nothing was changed.";
 
+/// The Message of an email save by a session whose user may not chat (Core.Access MayChat), approved text, verbatim: the mailbox would be theirs and its email would never be read.
+Parameter MESSAGEEMAILNOTUSER = "This mailbox would be yours, but you can't use the chat, so its email would never be read. An admin who can use the chat must connect it. Nothing was changed.";
+
 /// The Interoperability credential that holds the mailbox's user name and password (AD-19).
 Parameter CREDENTIAL = "OcuTalonMail";
 
@@ -1542,7 +1545,9 @@ Method TestModel(command As OcuTalon.Msg.Command.TestModel) As OcuTalon.Msg.Comm
 }
 
 /// Saves the email section of a SaveSettings command (Stories 21.2 and 21.3; AD-1, AD-17, AD-19; see the class description); changes is the parsed body.
-/// In order: the online demo refuses (not_available, nothing offered or read); the address and the user name are taken from the hand-off (TakeMailbox: a plain value, or
+/// In order: the online demo refuses (not_available, nothing offered or read); a saving session that has no row, or whose IRIS user may not chat now (Core.Access MayChat on the row's IrisUser), refuses
+/// with not_user and the Message MESSAGEEMAILNOTUSER, because the session becomes the mailbox's owner and EmailIn would refuse every email of an owner who may not chat: nothing is read from the hand-off,
+/// written or audited; the address and the user name are taken from the hand-off (TakeMailbox: a plain value, or
 /// a reference that names nothing, is refused naming the field); every field is validated (EmailShape: address, incoming server
 /// as host or host:port, user name, the sign-in method with its client ID and origin, and the secrets' hand-off references or nothing) and the secrets taken
 /// from the hand-off, so that a refusal names every refused field and changes nothing; then the changes against the stored values, each with a Settings audit entry
@@ -1560,6 +1565,7 @@ Method TestModel(command As OcuTalon.Msg.Command.TestModel) As OcuTalon.Msg.Comm
 Method SaveEmail(command As OcuTalon.Msg.Command.SaveSettings, changes As %DynamicObject) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	If ..OnlineDemo() Quit ..Result(0, "not_available", ..#MESSAGEUNAVAILABLE)
+	If '..SavingUserMayChat(command.SessionRef) Quit ..Result(0, "not_user", ..#MESSAGEEMAILNOTUSER)
 	Set bad = []
 	Kill field
 	Do ..TakeMailbox(changes, bad)
@@ -3154,10 +3160,18 @@ Method WritePartner(command As OcuTalon.Msg.Command.SaveSettings, ByRef row) As 
 /// The path of the Slack route of the hook application, which an admin subscribes the Slack app's events to (Story 27.3).
 Parameter SLACKPATH = "/ocutalon/hook/slack/events";
 
+/// 1 when the session has a row and the row's IRIS user (never the user of this job) may chat now (Core.Access MayChat). Nothing is written.
+ClassMethod SavingUserMayChat(sessionRef As %String) As %Boolean [ Private ]
+{
+	Set session = $Select($Get(sessionRef) = "": "", 1: ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef))
+	If '$IsObject(session) Quit 0
+	Quit ##class(OcuTalon.Core.Access).MayChat(session.IrisUser)
+}
+
 /// Carries out a ListSlackLinks (Story 27.3; origin web_admin, a read) in the production job: not_allowed for another origin, not_available (the text settings.slackOffOnDemo)
 /// on the online demo, otherwise the body {state, path, links, users} is offered to SecretHandoff and the answer is Ok 1, Outcome listed and Data {"handoff": uri}. state is
 /// "on" or "off" as Channel.Slack.In On answers it, never derived here; links is [{ref, user, member}] with the IRIS user of each link's session; users are the names that
-/// OnCallUsers gives, once each, in the order of their upper-cased names, and only those who may chat by web chat's rule (Core.Conversation MayChat). No user name or member id is in the command, the result, a log line or a message of the trace.
+/// OnCallUsers gives, once each, in the order of their upper-cased names, and only those who may chat now (Core.Access MayChat). No user name or member id is in the command, the result, a log line or a message of the trace.
 Method ListSlack(command As OcuTalon.Msg.Command.ListSlackLinks) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	If command.Origin '= "web_admin" Quit ..Result(0, "not_allowed", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTALLOWED)
@@ -3176,7 +3190,7 @@ Method ListSlack(command As OcuTalon.Msg.Command.ListSlackLinks) As OcuTalon.Msg
 	For {
 		Set key = $Order(names(key), 1, name)
 		Quit:key=""
-		If ##class(OcuTalon.Core.Conversation).MayChat(name) Do users.%Push(name)
+		If ##class(OcuTalon.Core.Access).MayChat(name) Do users.%Push(name)
 	}
 	Set body = {"state": ($Select(##class(OcuTalon.Channel.Slack.In).On(): "on", 1: "off")), "path": (..#SLACKPATH), "links": (links), "users": (users)}
 	Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(body.%ToJSON(), .uri)
@@ -3189,7 +3203,7 @@ Method ListSlack(command As OcuTalon.Msg.Command.ListSlackLinks) As OcuTalon.Msg
 
 /// Carries out a LinkSlackMember (Story 27.3; origin web_admin): the handoff is taken first, on every path, and holds {user, member}. In order: another origin is not_allowed;
 /// the online demo is not_available (the text settings.slackOffOnDemo); a handoff that cannot be taken or read is failed; an admin session without a row is no_session; the member (trimmed
-/// and upper-cased) that is not U or W and 2 to 31 letters or digits is refused with Data {"reason": "bad_member", "field": "member"}; a user who has no session row (OnCallUsers) or may not chat by web chat's rule (Core.Conversation MayChat, read in this job)
+/// and upper-cased) that is not U or W and 2 to 31 letters or digits is refused with Data {"reason": "bad_member", "field": "member"}; a user who has no session row (OnCallUsers) or may not chat now (Core.Access MayChat, read in this job)
 /// is refused user_unknown (field user); no noted workspace (Data.SlackLink Workspace) is refused no_workspace (no field); a member linked to another user is refused member_taken (field
 /// member) and a user whose session has another member user_taken (field user). The link goes to Data.Session ForUser, the user's oldest session row. The Settings audit entry
 /// (setting slackLink.<Ref>, from empty, to the user's name, never an id) is written before the row, and a failed write is not_audited and changes nothing; a link that then fails
@@ -3216,7 +3230,7 @@ Method LinkSlack(command As OcuTalon.Msg.Command.LinkSlackMember) As OcuTalon.Ms
 	If '$Match(member, "^[UW][A-Z0-9]{2,31}\z") Quit ..SlackRefusal("bad_member", "member")
 	Do ..OnCallUsers(.names)
 	Set key = $ZConvert($ZStrip(user, "<>W"), "U")
-	If (key = "") || '$Data(names(key), name) || '##class(OcuTalon.Core.Conversation).MayChat(name) Quit ..SlackRefusal("user_unknown", "user")
+	If (key = "") || '$Data(names(key), name) || '##class(OcuTalon.Core.Access).MayChat(name) Quit ..SlackRefusal("user_unknown", "user")
 	Set team = ##class(OcuTalon.Data.SlackLink).Workspace()
 	If team = "" Quit ..SlackRefusal("no_workspace", "")
 	Set session = ##class(OcuTalon.Data.Session).ForUser(name, .sc)

@@ -12,7 +12,8 @@
  *   when nothing was typed, so that the stored one is kept; isEmailDirty is the rule of the form's unsaved state.
  * - SIGN_IN_METHODS, providerName, signInReady, redirectAddress, stateText and signInButtonText are the rules of the sign-in method; landedFromSignIn and
  *   withoutLanding read and clear the `signin=1` of the address that the consent returns to.
- * - holdsReference says that a typed value holds the characters that open a setting reference; fieldErrorText is the error under a refused field.
+ * - holdsReference says that a typed value holds the characters that open a setting reference; fieldErrorText is the error under a refused field; notUserText is the
+ *   sentence that the server gives for a save by a session whose user may not use the chat (409 not_user), which the page shows as it is and holds no copy of.
  */
 import type { EmailValues } from '../api/api-types';
 
@@ -167,4 +168,14 @@ export function holdsReference(text: string): boolean {
 /** The error under a refused field: the setting-reference text when the field's typed value holds one, else `failed`, the page's "Couldn't save" text. */
 export function fieldErrorText(texts: Readonly<EmailTexts>, name: EmailField, failed: string): string {
   return holdsReference(texts[name]) ? EMAIL_TEXTS.refusedExpansion : failed;
+}
+
+/**
+ * The sentence of a save that the server refused because the saving session's user may not use the chat (status 409, error code not_user): the body's error message
+ * when it is a non-empty string, else "" (any other answer). The page never writes this text itself.
+ */
+export function notUserText(status: number, body: unknown): string {
+  const parsed = body !== null && typeof body === 'object' ? (body as { error?: { code?: unknown; message?: unknown } }) : {};
+  const message = parsed.error?.message;
+  return status === 409 && parsed.error?.code === 'not_user' && typeof message === 'string' && message !== '' ? message : '';
 }

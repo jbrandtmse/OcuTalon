@@ -5,6 +5,9 @@
 ///   - refuses what is not a Mail, a Mail with no Uidl, no owner (the product key email.owner, read from its row and never from the cache,
 ///     because the mailbox moves to the admin who saved last) or an owner with no Session row: an error status, and nothing is sent;
 ///   - sets its SuperSession to the owner session's TraceRef, so that the email has a trace session of its own under the owner's (AD-26);
+///   - refuses an email whose owner may not chat now (Core.Access MayChat on the owner session row's IrisUser: no OcuTalonUser role, a role set or account that cannot be read, a
+///     disabled or expired account; Story 0.38, AD-14): no Item is made, one Channel.Refused {email, not_user} goes to Intake, which drops it silently, and the status is OK, so that the adapter
+///     records the email seen and never reads it again. A failed send of the record is one fixed warning that names no address, user, Ref or mail text, and the status is still OK;
 ///   - sends Intake an OcuTalon.Msg.Item, asynchronously, with a new ItemId, the owner's SessionRef, channel email, provenance untrusted
 ///     and the Sender, Subject and Text of the Mail, the Text cut to SimMailbox.In BODYMAX characters (the size the simulated mailbox
 ///     takes); every other field is empty or 0.
@@ -33,6 +36,9 @@ Parameter ERRORINPUT = "EmailIn takes an email from its adapter and nothing else
 
 Parameter ERROROWNER = "The mailbox has no owner session.";
 
+/// The warning when the record of a refused email could not be sent; it names nothing of the email, its owner or the mailbox.
+Parameter LOGNOTUSER = "EmailIn could not record an email whose owner may not chat.";
+
 /// Takes an email.
 Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %RegisteredObject) As %Status
 {
@@ -43,6 +49,7 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 	If '$IsObject(session) Quit $SYSTEM.Status.Error(5001, ..#ERROROWNER)
 	Set ..%SuperSession = session.TraceRef
 	If ..IsOwnMail(pInput) Quit $$$OK
+	If '##class(OcuTalon.Core.Access).MayChat(session.IrisUser) Quit ..RecordNotUser()
 	Set sc = $$$OK
 	Try {
 		Set item = ##class(OcuTalon.Msg.Item).%New()
@@ -58,6 +65,23 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 		Set sc = exception.AsStatus()
 	}
 	Quit sc
+}
+
+/// The one record of a refused email: a Channel.Refused {email, not_user} sent to Intake through Send. The status is OK in every case (the adapter records the email seen); a failed send is one
+/// fixed warning.
+Method RecordNotUser() As %Status [ Private ]
+{
+	Set sc = $$$OK
+	Try {
+		Set refused = ##class(OcuTalon.Channel.Refused).%New()
+		Set refused.Channel = ..#CHANNEL
+		Set refused.Reason = "not_user"
+		Set sc = ..Send(..#TARGET, refused)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) $$$LOGWARNING(..#LOGNOTUSER)
+	Quit $$$OK
 }
 
 /// 1 when the email is one that EmailOut sent to this mailbox and it is taken for the first time (see the class description); the one use of its Ref is

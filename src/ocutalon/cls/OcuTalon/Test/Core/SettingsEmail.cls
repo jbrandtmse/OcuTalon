@@ -12,6 +12,9 @@
 ///     credential, row, update or audit entry is written; TestRefusedBodies: a body that is not an object, an array or an unknown field is refused;
 ///   - TestOnlineDemo (row 5): on the online demo the save answers not_available with the accepted sentence, takes nothing from the hand-off and writes
 ///     nothing, and the page's values have no channels;
+///   - TestSaveRefusesWhoMayNotChat (Story 0.38, M1): a save by a session whose IRIS user may not chat (an admin-only account, a viewer's, a disabled one, one past its expiry, a session with
+///     no row and a session whose row names no user) answers not_user with Ok 0 and the approved sentence VERBATIM, before anything is read or written: no key, credential, settings row,
+///     update, OAuth client or audit entry, and the hand-off's references are not taken; the same save by a session that may chat (control) is done;
 ///   - TestOtherAdminSaves (row 6): a second admin's save moves email.owner to that session and audits the two Refs;
 ///   - TestHandOffLost (row 7): a reference that names no secret is refused naming password and nothing is written;
 ///   - TestNothingChanged (DW-1139): the same save again writes no audit entry, no row and no credential and still updates the production, so that an item
@@ -49,7 +52,7 @@ Class OcuTalon.Test.Core.SettingsEmail Extends %UnitTest.TestCase
 /// The probe under test.
 Parameter PROBE = "OcuTalon.Test.Core.SettingsEmailProbe";
 
-/// The Refs of the sessions of the saves.
+/// The Refs of the sessions of the saves: fixture sessions of real accounts that hold OcuTalonUser (Fixture.ChatSession), since a save by a session whose user may not chat is refused.
 Parameter REF = "zzsession0123456789abc";
 
 Parameter OTHERREF = "zzsession9876543210cba";
@@ -76,8 +79,13 @@ Parameter UNAVAILABLE = "Email can't be connected on the online demo. Nothing wa
 /// The references offered since the last Reset, as a list; Reset discards them.
 Property Uris As %List [ Private ];
 
+/// The Refs of the fixture sessions of the saves, comma-separated.
+Property Refs As %String(MAXLEN = "");
+
 Method OnBeforeAllTests() As %Status
 {
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
+	Set ..Refs = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zzsettingsemail", "OcuTalonUser", , ..#REF)_","_##class(OcuTalon.Test.Data.Fixture).ChatSession("zzsettingsemailother", "OcuTalonUser", , ..#OTHERREF)
 	Kill ^OcuTalonTest("SettingsEmail")
 	For i = 1:1:$Length(..#KEYS, ",") {
 		Set key = $Piece(..#KEYS, ",", i)
@@ -110,6 +118,7 @@ Method OnAfterAllTests() As %Status
 	Kill ^OcuTalonTest("SettingsOpsProbe")
 	Kill ^OcuTalonTest("SettingsEmailProbe")
 	Kill ^||OcuTalonSettingsEmailProbe
+	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Quit $$$OK
 }
 
@@ -317,6 +326,61 @@ Method TestOnlineDemo()
 	Do $$$AssertEquals(..Values().sections.%IsDefined("channels"), 1, "and have one on a local install")
 }
 
+/// M1: a mailbox save by a session whose user may not chat is refused with not_user and the approved sentence, and writes nothing (see the class comment). The sentence is written out here.
+Method TestSaveRefusesWhoMayNotChat()
+{
+	Set sentence = "This mailbox would be yours, but you can't use the chat, so its email would never be read. An admin who can use the chat must connect it. Nothing was changed."
+	Do $$$AssertEquals(##class(OcuTalon.Core.SettingsOps).#MESSAGEEMAILNOTUSER, sentence, "the constant is the approved sentence")
+	Set cases = $ListBuild($ListBuild("adminonly", "OcuTalonAdmin", 1, ""), $ListBuild("viewer", "OcuTalonViewer", 1, ""), $ListBuild("disabled", "OcuTalonAdmin,OcuTalonUser", 0, ""), $ListBuild("expired", "OcuTalonAdmin,OcuTalonUser", 1, -2))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Do ..Reset()
+		Set name = $List(case, 1)
+		Set ref = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zzsettingsemail"_name, $List(case, 2), .user)
+		Set ..Refs = ..Refs_","_ref
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Data.Fixture).SetAccount(user, $List(case, 3), $List(case, 4)), name_": the account state is set")
+		Do ..AssertNotUser(ref, name)
+	}
+	Do ..Reset()
+	Do ..AssertNotUser("zzsession0000000000none", "a session with no row")
+	Do ..Reset()
+	Set none = ##class(OcuTalon.Test.Data.Fixture).Session("")
+	Set ..Refs = ..Refs_","_none
+	Do ..AssertNotUser(none, "a session whose row names no user")
+	Do ..Reset()
+	Set secret = ..Secret("control")
+	Set uri = ..Offer(secret)
+	Set result = ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, uri))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "control: the same save by a session that may chat is done")
+	Do $$$AssertEquals(..Row("email.owner"), ..#REF, "and the mailbox is its")
+}
+
+/// A new fixture session of a real account that holds OcuTalonUser (Fixture.ChatSession), recorded for the clean-up; its Ref, for a save whose audit entries are read by session.
+Method NewSession() As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zzsettingsemailn")
+	Set ..Refs = ..Refs_","_ref
+	Quit ref
+}
+
+/// One refused save by the session ref: the answer, and nothing read from the hand-off, nothing written.
+Method AssertNotUser(ref As %String, what As %String) [ Private ]
+{
+	Set sentence = ##class(OcuTalon.Core.SettingsOps).#MESSAGEEMAILNOTUSER
+	Set offered = ..Offered("zznotuser@example.com", "zznotuseruser")
+	Set result = ..SaveText(offered.%ToJSON(), ref)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|not_user|"_sentence, what_": not_user, with the approved sentence")
+	Do $$$AssertEquals(result.Data, "", what_": and no data")
+	Do $$$AssertEquals(..Row("email.address")_"|"_..Row("email.owner")_"|"_..Row("email.signIn")_"|"_..Row("email.clientId")_"|"_..Row("email.oauthOwned"), "||||", what_": no email key is written")
+	Do $$$AssertEquals($Data(^||OcuTalonSettingsEmailProbe("cred"))_"|"_$Data(^||OcuTalonSettingsEmailProbe("sds"))_"|"_$Get(^||OcuTalonSettingsEmailProbe("calls"), 0), "0|0|0", what_": no credential, row or update")
+	Do $$$AssertEquals(..Audits().%Size(), 0, what_": nothing is audited")
+	For name = "address", "user", "password" {
+		Set sc = ##class(OcuTalon.Core.SecretHandoff).Take(offered.%Get(name), .left, 0)
+		Do $$$AssertEquals($$$ISOK(sc)_"|"_(left '= ""), "1|1", what_": the hand-off was not touched: the "_name_" reference is still there")
+		Kill left
+	}
+}
+
 /// Matrix row 6: a second admin's save moves the mailbox to that session.
 Method TestOtherAdminSaves()
 {
@@ -461,7 +525,7 @@ Method TestAllOrNothing()
 	Do ..Reset()
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "apply") = "error"
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
-	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ref = ..NewSession()
 	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Set result = ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ..Offer(..Secret("apply"))), ref)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a failed key write is failed")
@@ -482,7 +546,7 @@ Method TestAllOrNothing()
 			Set ^OcuTalonTest("SettingsEmailProbe", "answer", $Piece(stage, "|", 2)) = $Piece(stage, "|", 3)
 			Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
 			Set was = ..State()
-			Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+			Set ref = ..NewSession()
 			Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 			Set result = ..Save(..Body("zznew@example.com", "new.example.com:110", "zznewuser", ..Offer(..Secret("fail")), "new.smtp.example.com:465"), ref)
 			Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a failed "_$Piece(stage, "|", 1)_" (earlier mailbox "_earlier_") is failed")
@@ -500,7 +564,7 @@ Method TestOutsideEntriesFollowTheValues()
 {
 	Do ..Reset()
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
-	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ref = ..NewSession()
 	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Set result = ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ..Offer(..Secret("order")), ..#SMTPHOST), ref)
 	Do $$$AssertEquals(result.Outcome, "done", "a save with an outgoing server is done")
@@ -516,7 +580,7 @@ Method TestOAuthOwnedRowFailureWritesNoEntry()
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "applyAt") = 5
 	Set was = ..State()
-	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ref = ..NewSession()
 	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Set result = ..Save(..ProviderBody("google", ..Offer(..Secret("owned"))), ref)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "the fifth key write, email.oauthOwned, fails: failed")
@@ -541,7 +605,7 @@ Method TestForgetClientRowFailureWritesNoEntry()
 		Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
 		Set ^OcuTalonTest("SettingsEmailProbe", "answer", "start") = "error"
 		If 'control Set ^OcuTalonTest("SettingsOpsProbe", "answer", "applyAt") = 9
-		Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set ref = ..NewSession()
 		Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 		Set result = ..Save(..PasswordBody(..Offer(..Secret("forget"))), ref)
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a removal whose update fails is failed (control "_control_")")
@@ -555,7 +619,7 @@ Method TestOAuthOwnedAuditFails()
 {
 	Do ..Reset()
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
-	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ref = ..NewSession()
 	Set result = ..Save(..ProviderBody("google", ..Offer(..Secret("ownedaudit"))), ref)
 	Do $$$AssertEquals(result.Outcome, "done", "the control save is done")
 	Set at = 0, turn = 0
@@ -569,7 +633,7 @@ Method TestOAuthOwnedAuditFails()
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "auditAt") = at
 	Set was = ..State()
-	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ref = ..NewSession()
 	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Set result = ..Save(..ProviderBody("google", ..Offer(..Secret("ownedaudit2"))), ref)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "the refused email.oauthOwned entry fails the save")
@@ -588,7 +652,7 @@ Method TestForgetClientAuditFails()
 		Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
 		Set ^OcuTalonTest("SettingsEmailProbe", "answer", "start") = "error"
 		If 'control Set ^OcuTalonTest("SettingsOpsProbe", "answer", "auditAt") = at
-		Set result = ..Save(..PasswordBody(..Offer(..Secret("forgetaudit"))), ##class(OcuTalon.Bridge.Ids).NewRef())
+		Set result = ..Save(..PasswordBody(..Offer(..Secret("forgetaudit"))), ..NewSession())
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a removal whose update fails is failed (control "_control_")")
 		If control {
 			Set at = +$Get(^||OcuTalonSettingsOpsProbe("n", "audit"))

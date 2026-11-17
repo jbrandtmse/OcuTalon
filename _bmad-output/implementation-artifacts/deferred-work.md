@@ -7930,6 +7930,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Channel/Telegram/In.cls:184,204,256 and Channel/Email/In.cls:37 never read OcuTalonUser/$Roles/GetUserRecursedRoleSet; Bridge/Approval.cls:325,412 does at answer time (measured by 25.4 Task 0, C3)
 - 2026-11-13T19:31:44Z status=routed owner=burndown by=spec_gate note=Planner ruling C3 (story-254-rulings-20261113.md): report only, does not block 25.4
 - 2026-11-15T16:32:37Z status=routed owner=26-4-approver-roles-for-all-risky-actions-or-one-kind-and-a-viewe by=burndown note=overflow:26.4_enforces_roles_wherever_an_answer_arrives;the_same_use-time_check_belongs_at_the_Telegram_and_email_turn_entries(Telegram/In.cls,Email/In.cls);Planner_C3_report-only_in_25.4;DW-n_bullet_for_the_orchestrator_post-merge
+- 2026-11-17T00:30:51Z status=routed owner=0-38-telegram-and-email-turns-check-the-person-s-role-at-use-time by=lead note=chartered_as_Story_0.38(Planner_dispatch_Nov_17)
 - 2026-11-16T22:31:45Z occurrence=27-3-link-slack-members-in-settings by=cr note=SlackIn_turns_also_skip_the_use-time_OcuTalonUser_check;27.3_lets_an_admin_link_any_user_with_a_session_row_(a_viewer_too),_whose_Slack_DMs_then_become_turns
 
 ### DW-1289: Roles audit entry is redacted (from/to blanked) for a user whose name ends in a sensitive suffix (token, secret, password, apikey, ...), because Assign's setting is roles.<userName> and Bridge.Audit.Record redacts by setting name
@@ -8970,6 +8971,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: rework-1 edge review, unverified; settle with a fixture user Enabled=0 and a Slack Item for its session; the same gap applies to every channel that later calls MayChat (Story 0.38, DW-1284)
 - 2026-11-17T00:56:23Z status=escalated owner=burndown by=harvest note=for_the_Planner:extend_MayChat(irisUser)_with_account_state_(Enabled,expiry)_in_27.3_or_in_0.38?
 - 2026-11-17T01:12:02Z occurrence=27-3-link-slack-members-in-settings note=measured(throwaway):role_set_reads_OK_with_OcuTalonUser_for_a_disabled_and_an_expired_account;so_MayChat_answers_1
+- 2026-11-17T06:41:34Z status=routed owner=0-38-telegram-and-email-turns-check-the-person-s-role-at-use-time by=lead note=in_0.38_scope(Planner_~02:05Z_Nov_17)
 - 2026-11-17T01:36:09Z status=routed owner=burndown by=merge_gate note=Contest_Planner_2026-11-17:to_lane_D_Story_0.38(DW-1284)_extend_MayChat(irisUser)_with_account_state;key_not_yet_in_tracker
 - 2026-11-17T09:19:13Z note=overflow:owned_by_lane_D_Story_0.38(Planner_ruling;key_not_in_tracker) by=burndown
 
@@ -8977,6 +8979,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-27-3-link-slack-members-in-settings.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Core/Conversation.cls MayChat references Web.Public.Shell; ARCHITECTURE-SPINE Dependency direction (mermaid + prose) has no Core->Web arrow and says the rest is checked in review; precedent Core.Files->Web.Documents is also unlisted
 - 2026-11-17T01:12:02Z status=escalated owner=burndown by=cr note=for_the_Planner:record_the_ruled_Core->Web.Public.Shell.MayChat_edge_in_the_dependency_diagram(or_move_the_predicate)
+- 2026-11-17T06:41:34Z status=routed owner=0-38-telegram-and-email-turns-check-the-person-s-role-at-use-time by=lead note=in_0.38_scope(Planner_~02:05Z_Nov_17)
 - 2026-11-17T01:36:09Z status=routed owner=burndown by=merge_gate note=Contest_Planner_2026-11-17:to_lane_D_Story_0.38_move_the_predicate_into_Core;key_not_yet_in_tracker
 - 2026-11-17T09:19:13Z note=overflow:owned_by_lane_D_Story_0.38(Planner_ruling;key_not_in_tracker) by=burndown
 ### DW-1459: 28.3: OnAuthenticate's refusals (online demo, widened specification) and the real $Username and application role are not exercised through the dispatcher or iris-mcp-server
@@ -9036,6 +9039,16 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: the control run at c573a86d0 gave one diagnose fallback on claims-archive-internal-error with ERROR #9404 (a field the reply class does not have), the case DW-1421 C2 targeted, at its 1st occurrence; round 4 maps #9404 to the fixed tag unexpected-field so the capture names it
 - 2026-11-16T22:02:44Z status=open owner=burndown by=lead note=against C2; reconsider on repeats
 
+### DW-1482: Telegram approval answers (Got it and the approval buttons) check roles only, so a disabled or expired user whose chat is still paired can answer them
+- source: spec-0-38-telegram-and-email-turns-check-the-person-s-role-at-use-time.md (code-review) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: AnswersIn.FromTelegram and Bridge.Approval HoldsRole read roles, not the account state (Enabled, expiry) that Core.Access MayChat now reads; pre-existing; 0.38's Design Notes list it as known, not changed
+- 2026-11-17T14:51:23Z status=open owner=burndown by=lead note=candidate: answers call Core.Access MayChat(irisUser) as well
+- 2026-11-17T16:59:13Z status=resolved-by:0-38-telegram-and-email-turns-check-the-person-s-role-at-use-time by=lead note=f4549a262:Core.Access.AccountUsable_in_Live.Payload.Approval.Answerable(AnswersIn_rule_6:web,phone,telegram)+Telegram_GotIt/AckPage_gate;Channel.Refused_telegram_not_user;no_new_chat-role_for_approvers
+
+### DW-1483: flake: Test.Schedule.Heartbeat TestStubSkipped fails in reverse shard order (lane-b part 2/6 --reverse): an Ens.Alarm timer warning left by earlier Schedule classes counts as an error row
+- source: spec-0-38 (implement verification, lane D e038i reverse shards) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: FAIL TestStubSkipped: no error or alert row was written: Ens.Alarm Message can not be found, timer event ignored; order dependent; no Schedule file in 0.38's diff
+- 2026-11-17T14:51:23Z status=open owner=burndown by=lead note=test isolation
 ### DW-1474: flake: Test.Core.PersonaAnswers TestTelegramFirstApproves 'the phone copy's Answer is the approval' red once in CI iris(image) lane-b@Contract,Core,Data,Live on feature 81265443f (ci 44007120511, ocutalon-ci-32); WaitAnswer returns the first non-empty Answer or empty at SECONDS, so a slow or differently-timed phone copy fails it
 - source: feature-81265443f-red-20261117 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: not reproduced: fresh class alone pass (e27fxc, 21.1s) and fresh shard part 2/4 with its 10 predecessors pass (e27fxs, 26 classes); earlier assertions of the same test (request done, approved from telegram by the user) passed in CI, so the role check (HoldsRole via the 27.3 RolesOf) answered 1; RolesOf diff is behaviour-neutral (same call, same ISOK and ListFind, same 0 on error/empty)
@@ -9078,6 +9091,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-17T02:54:45Z status=escalated owner=burndown by=lead note=second local red in the reversed lane-a Mcp shard (TestNoSecretLeaksOnFailure, same 40 s poll assertion, class 89 s); alone passes in 46 s; both orders passed at 28.3 head d10945ef5 before integrating feature 05915a781 (25.9 SettingsOps, DW-1421 round 3 Decide); feature itself is green in CI; cause unknown - CI on the pushed head decides; a CI red on it is a cause-and-fix item
 - 2026-11-17T03:51:21Z status=wontfix-accepted by=lead note=CI on the 28.3 head 96cc877a6 (run 44006481188, iris shards-2 green): SourceRunProduction passed in 49.81 s; the local reds were host-load timing; reopen_if=a red of its 40 s poll assertion in CI on any head
 
+### DW-1485: Web and phone approval answers skip the account-state read for the job's own user (a web job cannot read Security.Users), so a disabled or expired user with a still-live web session is not refused by DW-1482's check
+- source: spec-0-38b-dw-1482 (code-review) | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Live.Payload.Approval.Answerable exempts session.IrisUser = $Username; without it every web approval was refused (AnswersInWebRoles red); ruling scope was Telegram; a live web session of a disabled account also relates to DW-1290
+- 2026-11-17T16:59:13Z status=open owner=burndown by=lead note=deferred at 1.0.13 wrap-up
+
+### DW-1486: No test runs the real approval API through the Telegram production job with a session user other than $Username for DW-1482's account check (shadow instances and the approval double only)
+- source: spec-0-38b-dw-1482 (code-review) | severity: low | fix-risk: low | footprint: in-epic
+- evidence: relies on the production job privilege that 0.38's MayChat already uses and pins live (slack-hook phase 7)
+- 2026-11-17T16:59:13Z status=open owner=burndown by=lead note=deferred at 1.0.13 wrap-up
 ### DW-1484: flake: frame.spec.ts:455 'a failed snapshot' main.main not found within 10 s after signInReadme (feature cbdf9217b, shards-10 live:sign-in, ci-29/ci-e)
 - source: orchestrator CI classification feature cbdf9217b run 44072151150 job 134000786400 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 27.2 changed no web e2e/app code (only web/scripts/slack-setup-steps.test.mjs); same test green on 588ba262d and on 0.38 head 041ccf71a (contains cbdf9217b) shards-10 ci-32; signInReadme waits only for title+load, not the shell

@@ -412,11 +412,13 @@ Method WaitDeliveries(session As %String, ref As %String, kind As %String, count
 	Quit found
 }
 
-/// A fixture session, paired with the chat of PairChat through the real /start path when one is set.
+/// A fixture session, paired with the chat of PairChat through the real /start path when one is set: that session is of a real account that holds OcuTalonUser and is named as Session names its
+/// user, since Pair refuses a session whose user may not chat.
 Method Session(name As %String) As %String [ Private ]
 {
-	Set ref = ##super(name)
-	If ..PairChat '= "" Do ..Pair(ref, ..PairChat, "Zz Pager")
+	If ..PairChat = "" Quit ##super(name)
+	Set ref = ..ChatSession(name, "OcuTalonUser", , 1)
+	Do ..Pair(ref, ..PairChat, "Zz Pager")
 	Quit ref
 }
 

@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, Injector, input, output, signal } from '@angular/core';
 import { map, type Observable, tap } from 'rxjs';
 
@@ -17,6 +18,7 @@ import {
   fieldErrorText,
   isEmailDirty,
   landedFromSignIn,
+  notUserText,
   redirectAddress,
   redirectHelpText,
   SIGN_IN_METHODS,
@@ -220,7 +222,7 @@ const FORM_ERROR_ID = 'email-error';
           <app-server-button variant="primary" [action]="save" [describedBy]="described()">{{ saveLabel }}</app-server-button>
         </div>
         @if (formError()) {
-          <p class="field-error" id="email-error"><app-icon name="circle-alert" [size]="16" />{{ failed }}</p>
+          <p class="field-error" id="email-error"><app-icon name="circle-alert" [size]="16" />{{ formError() }}</p>
         }
         @if (done()) {
           <p class="saved">{{ savedText }}</p>
@@ -342,7 +344,8 @@ export class EmailSection {
   /** The address to register at the provider: this page's origin and IRIS's redirection endpoint. */
   protected readonly redirect = redirectAddress(globalThis.location.origin);
   protected readonly errors = signal<Partial<Record<EmailField, boolean>>>({});
-  protected readonly formError = signal(false);
+  /** The text under Save when the save was refused or failed, "" when nothing is: the server's sentence for a save that its user may not make, else the failed text. */
+  protected readonly formError = signal('');
   protected readonly done = signal(false);
   protected readonly described = computed<readonly string[]>(() => (this.formError() ? [FORM_ERROR_ID] : []));
 
@@ -395,7 +398,7 @@ export class EmailSection {
   protected chose(method: SignIn): void {
     this.texts.update((one) => ({ ...one, signIn: method }));
     this.errors.set({});
-    this.formError.set(false);
+    this.formError.set('');
     this.signInFailed.set(false);
     this.done.set(false);
   }
@@ -406,13 +409,13 @@ export class EmailSection {
     if (this.errors()[name]) {
       this.errors.update((one) => ({ ...one, [name]: false }));
     }
-    this.formError.set(false);
+    this.formError.set('');
     this.done.set(false);
   }
 
   /** Save changes: posts the typed values; the answer decides what the group shows. */
   protected readonly save = (): Observable<unknown> => {
-    this.formError.set(false);
+    this.formError.set('');
     this.signInFailed.set(false);
     this.done.set(false);
     this.errors.set({});
@@ -476,8 +479,10 @@ export class EmailSection {
     const known: string[] = [...EMAIL_FIELDS];
     const refusal = refusalOf(error, known);
     if (refusal.kind !== 'field') {
-      this.formError.set(true);
-      this.announcer.announce(SETTINGS_TEXTS.failed);
+      const refused = error instanceof HttpErrorResponse ? notUserText(error.status, error.error) : '';
+      const shown = refused === '' ? SETTINGS_TEXTS.failed : refused;
+      this.formError.set(shown);
+      this.announcer.announce(shown);
       return;
     }
     const names = refusal.fields as EmailField[];

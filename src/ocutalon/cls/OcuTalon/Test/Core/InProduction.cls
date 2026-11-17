@@ -113,7 +113,20 @@ Method WaitDone(session As %String, clientId As %String) As OcuTalon.Data.Turn [
 /// A fixture session; its Ref is kept for the clean-up, and its TraceRef is a SuperSession of the run.
 Method Session(name As %String) As %String [ Private ]
 {
-	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session(..#SESSIONPREFIX_..Number_name)
+	Quit ..KeepSession(##class(OcuTalon.Test.Data.Fixture).Session(..#SESSIONPREFIX_..Number_name))
+}
+
+/// A fixture session of a real IRIS account that holds the roles (OcuTalonUser by default; Fixture.ChatSession, whose accounts Fixture.Clean drops with the rows), for a test whose pairing, mailbox
+/// save or turn is refused for a user who may not chat; kept for the clean-up like Session's, with user the account's name (with exact, the prefix, the run's number and name as they are,
+/// the user name that Session gives, for a test that names its user).
+Method ChatSession(name As %String, roles As %String = "OcuTalonUser", Output user As %String, exact As %Boolean = 0) As %String [ Private ]
+{
+	Quit ..KeepSession(##class(OcuTalon.Test.Data.Fixture).ChatSession(..#SESSIONPREFIX_..Number_name, roles, .user, , exact))
+}
+
+/// Keeps the session row's Ref for the clean-up, and its TraceRef as a SuperSession of the run; returns the Ref.
+Method KeepSession(ref As %String) As %String [ Private ]
+{
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
 	Set ..Sessions = ..Sessions_$Select(..Sessions = "": "", 1: ",")_ref
 	Do ..Supers.%Push(##class(OcuTalon.Data.Session).RefIndexOpen(ref).TraceRef)

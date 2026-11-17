@@ -1995,6 +1995,31 @@ So that a fault gets a check and a choice gets a notice.
 **Then** every workflow is green
 - DW-1273: Story 0.35's known regression: the stopped findings went to tellnow in 3 of 5 NEW A/B attempts (ledger; routed by the Contest Planner 2026-11-13)
 
+### Story 0.38: Telegram and email turns check the person's role at use time, as web chat does
+
+[ADDED 2026-11-17, Contest Planner, DW-1284 raised after 27.3's viewer finding] (story-273-rulings-20261116.md, the 26.4 / DW-1284 section and the 27.3 Task 0 ruling (a); merges after the Triage confidence A/B). The release note states it plainly as a fix: a viewer, or a person whose OcuTalonUser role was removed, could start turns through a paired Telegram chat or the connected mailbox that web chat refuses.
+
+**RELEASE BLOCKER** [AMENDED 2026-11-17, Contest Planner, additions from the 27.3 rework ~02:05Z]: Story 0.38 blocks the next release that contains ANY Epic 27 story; no release ships Slack without it. Its scope also takes DW-1465 (MayChat refuses a disabled account and one past its expiry, read in the production job, pinned per channel including live:slack-hook), DW-1466 (the predicate moves into Core, for example Core.Access MayChat(roles) and MayChat(irisUser), and Web.Public.Shell calls Core; the 10-role-set agreement test against Web/Api stays) and the move of Slack's not_user onto Channel.Refused. Release note: "a disabled or expired IRIS account, or a user without the chat role, could still start conversations through Telegram or email; now refused."
+
+As an admin who assigns roles,
+I want a message that arrives on Telegram or by email to start a turn only when its sender may chat by web chat's rule at that moment,
+So that removing a role, or making someone a viewer, closes every channel at once.
+
+**Acceptance Criteria:**
+
+**Given** a message of channel telegram or email in the production job: Telegram turns are checked where they reach Core.Conversation; email is checked in EmailIn before an Item is made [AMENDED 2026-11-17 — see the story change log]
+**When** its session's IRIS user may not chat by web chat's exact rule (the ONE shared predicate, Core.Access MayChat (DW-1466), reading roles the way Bridge/Approval.cls HoldsRole does) [AMENDED 2026-11-17 — see the story change log]
+**Then** no turn, no reply, no tool call and no model call happens, no Conversation or turn row is written, no reply is sent, and one content-free record with the reason `not_user` is kept; the inbound text goes no further than its message body and follows normal retention
+
+**Given** each of Telegram and email
+**When** automated tests run against the CI mocks
+**Then** they pin: a viewer's message refused; a role removed after pairing (Telegram) or after the mailbox was linked (email) refused on the next message; an admin who is also a user allowed; an admin-only user following web chat's rule; no reply sent and no Conversation or turn row written; and, where a pairing or linking step exists, a viewer refused at pair or link time with existing texts only (any new text goes to the Contest Planner first)
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+- DW-1284: Telegram and email take a message in on the strength of the pairing or the saved mailbox, not of the person's role at use time (ledger; raised in priority by the Contest Planner 2026-11-16)
+
 ### Story 0.39: Browser-timing flakes wait for the page's real readiness, and a turn at the UTC day rollover does not error
 
 [ADDED 2026-11-17, Contest Planner, browser-timing flake burndown] (dispatch ~01:30Z Nov 17, lane A; flake tally of 2026-11-16). Test only and bounded, except DW-1464, a product-bug candidate whose fix is a Planner gate item. Branch `OCT-epic0-flakes` from feature 1f8733c0e. Binding conditions: fix the CAUSE of each flake and wait on the real readiness signal, never a sleep; no blanket timeout raises, no added retries that hide a failure, no weakened assertions; a timeout raise only where it is truly the only fix, justified per test; a product-code change (for example a readiness marker the page exposes) goes to the Planner first; each fix is proved by a loop of the affected spec under load (at least 10 iterations beside a busy stack, with before and after counts).

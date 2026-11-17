@@ -7,6 +7,10 @@
 ///     chat id and no name), one pairing event with the chat's name, no notice;
 ///   - TestPairUnknownCode, TestPairExpiredCode, TestPairUsedCode, TestPairCodeOfAGoneSession, TestPairUnknownChat: nothing is linked, the
 ///     code stays as it was, and each outcome is audited as rejected with its reason;
+///   - TestPairRefusesWhoMayNotChat (Story 0.38): a valid unused code of a session whose real IRIS account may not chat (a viewer-only account, a disabled one, an expired one, an
+///     admin-only one, and a session that names no user) links nothing: not_user, Ok 0 and an empty Message, one rejected entry with the reason not_user for the session, no pairing
+///     event, no Notification, the chat unlinked and the code still unused; the same code then pairs once the account holds OcuTalonUser and is usable, and a session whose
+///     account holds OcuTalonUser pairs as before (the control);
 ///   - TestPairRepeatChangesNothing: a used code repeated by the chat that is on its session is paired, with no audit and no event;
 ///   - TestPairChatMoves and TestPairSecondChat: the unlinks come first with their audit entries, events and (for a second chat only) the
 ///     notice, then the link; TestNotifyReadsTheNotice routes that notice through the Notify rule, with Included 1 and 0;
@@ -44,6 +48,9 @@ Parameter NOTIFYRULE = "OcuTalon.Core.Rule.Notify";
 
 /// The run's number.
 Property Number As %Integer;
+
+/// The fixture account of each session that Session made, by the name it was made with.
+Property Users As %String [ MultiDimensional ];
 
 /// The count of chats made, for their chat ids.
 Property Chats As %Integer [ InitialExpression = 0 ];
@@ -740,6 +747,56 @@ Method TestOtherMessagesAreRefused()
 	}
 }
 
+/// A code of a session whose user may not chat links nothing, for each way of not being allowed to chat: the outcome not_user with Ok 0 and no Message, one rejected audit entry
+/// (reason not_user) for the code's session, no event and no Notification, the chat row unlinked and the code unused (so that it can still be used). The session of an account
+/// that holds OcuTalonUser and is usable pairs (control), and so does the viewer's session once the account holds the role.
+Method TestPairRefusesWhoMayNotChat()
+{
+	Set cases = $ListBuild($ListBuild("viewer", "OcuTalonViewer", 1, ""), $ListBuild("disabled", "OcuTalonUser", 0, ""), $ListBuild("expired", "OcuTalonUser", 1, -2), $ListBuild("adminonly", "OcuTalonAdmin", 1, ""))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set name = $List(case, 1)
+		Set probe = ..Probe()
+		Set session = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zzsessops"_..Number_"na"_name, $List(case, 2), .user)
+		Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_session
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Data.Fixture).SetAccount(user, $List(case, 3), $List(case, 4)), name_": the account state is set")
+		Set chat = ..NewChat("Dana")
+		Do ..Code(session, .hash)
+		Set result = ..Pair(probe, hash, chat)
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|not_user|", name_": Ok 0, not_user, an empty Message")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).Chat(chat).SessionRef, "", name_": the chat is not linked")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).ForCode(hash).CodeUsedAt, "", name_": the code is still unused")
+		Do $$$AssertEquals(..AuditSummary(probe), "rejected/not_user/"_session_"/telegram", name_": one rejected entry (not_user) for the session")
+		Do $$$AssertEquals(probe.Audits.%Get(0).irisUser, user, name_": it names the session's IRIS user")
+		Do $$$AssertEquals(..EventSummary(session), "", name_": no pairing event")
+		Do $$$AssertEquals(probe.Notices.Count(), 0, name_": no Notification")
+	}
+	Set none = ##class(OcuTalon.Test.Data.Fixture).Session("")
+	Set ..Refs = ..Refs_","_none
+	Set probe = ..Probe()
+	Set chat = ..NewChat("Dana")
+	Do ..Code(none, .hash)
+	Set result = ..Pair(probe, hash, chat)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|not_user|", "a session with no IRIS user: not_user")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).Chat(chat).SessionRef_"|"_##class(OcuTalon.Data.Pairing).ForCode(hash).CodeUsedAt, "|", "and nothing is linked or used")
+	Set probe = ..Probe()
+	Set session = ..Session("naok")
+	Set chat = ..NewChat("Dana")
+	Do ..Code(session, .hash)
+	Set result = ..Pair(probe, hash, chat)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|paired", "control: a session of an account that holds OcuTalonUser pairs")
+	Do $$$AssertEquals(..AuditSummary(probe), "linked/code/"_session_"/telegram", "with one linked entry")
+	Set probe = ..Probe()
+	Set viewer = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zzsessops"_..Number_"nagrant", "OcuTalonViewer", .grant)
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_viewer
+	Set chat = ..NewChat("Dana")
+	Do ..Code(viewer, .hash)
+	Do $$$AssertEquals(..Pair(probe, hash, chat).Outcome, "not_user", "a viewer is refused")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Data.Fixture).GiveRole(grant, "OcuTalonUser"), "the account is given OcuTalonUser")
+	Set probe = ..Probe()
+	Do $$$AssertEquals(..Pair(probe, hash, chat).Outcome, "paired", "the same code then pairs: it was not used up")
+}
+
 /// --- helpers ---
 /// A shadow instance of the probe.
 Method Probe() As OcuTalon.Test.Core.SessionOpsProbe [ Private ]
@@ -749,16 +806,17 @@ Method Probe() As OcuTalon.Test.Core.SessionOpsProbe [ Private ]
 	Quit probe
 }
 
-/// The IRIS user of the fixture session of the name.
+/// The IRIS user of the fixture session of the name (Session makes it).
 Method User(name As %String) As %String [ Private ]
 {
-	Quit "zzsessops"_..Number_name
+	Quit $Get(..Users(name))
 }
 
-/// A fixture session of the name, recorded for the clean-up. Returns its Ref.
+/// A fixture session of the name, of a real account that holds OcuTalonUser (Fixture.ChatSession, whose accounts Fixture.Clean drops with the rows), recorded for the clean-up. Returns its Ref.
 Method Session(name As %String) As %String [ Private ]
 {
-	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session(..User(name))
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zzsessops"_..Number_name, "OcuTalonUser", .user)
+	Set ..Users(name) = user
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
 	Quit ref
 }
