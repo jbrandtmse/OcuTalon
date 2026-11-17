@@ -8901,8 +8901,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: verification-gap: removing the throw leaves retry-bounds.test.mjs green; web/e2e/support/floor.ts:189
 - 2026-11-17T02:27:14Z status=open owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=harvest note=pass B adds a row or live repro (AC2b)
+- 2026-11-17T08:40:28Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=pass_B2_c54bdf0c2:row_through_reloadSettled/withOneReload,deleting_the_throw_turns_row_1_red
 
 ### DW-1472: 0.39 pass A: T1, T4 and T5 count pairing-code requests across a reload; the one logged retry asks for the code again, so a healed flake could fail as a count of 2
 - source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: blind-hunter; Task 4 asks to confirm the counts; only T2 ran on the fixed tree in pass A
 - 2026-11-17T02:27:14Z status=open owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=harvest note=pass B checks T1/T4/T5 under the repro and with a full live demo-path run
+- 2026-11-17T08:40:28Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=pass_B2_c54bdf0c2:main-bundle-abort_repro:T1,T5,T4-refused_pass_with_one_RETRY
+
+### DW-1479: flake candidate: web/e2e-online/busy.spec.ts:135 B1 reads the busy splash's focus once (document.activeElement?.id) right after the page's load, so the splash's autofocus may not have applied yet ('the error has the focus': expected ocu-error, received '')
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: one red in a local live:online-demo run in 0.39 pass B2 (lane A), green in the re-run and in a run before it; not this story's file
+- 2026-11-17T08:40:28Z status=open owner=burndown by=harvest note=flake rule: a repeat makes it a cause-and-fix item; DEFERRED under the 1.0.13 wrap-up unless needed for CI green
