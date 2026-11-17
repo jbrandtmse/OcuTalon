@@ -8944,3 +8944,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner control verdict ~22:05Z Nov 16 (DW-1421 round 4 additions) | severity: low | fix-risk: low | footprint: in-epic
 - evidence: the control run at c573a86d0 gave one diagnose fallback on claims-archive-internal-error with ERROR #9404 (a field the reply class does not have), the case DW-1421 C2 targeted, at its 1st occurrence; round 4 maps #9404 to the fixed tag unexpected-field so the capture names it
 - 2026-11-16T22:02:44Z status=open owner=burndown by=lead note=against C2; reconsider on repeats
+
+### DW-1474: flake: Test.Core.PersonaAnswers TestTelegramFirstApproves 'the phone copy's Answer is the approval' red once in CI iris(image) lane-b@Contract,Core,Data,Live on feature 81265443f (ci 44007120511, ocutalon-ci-32); WaitAnswer returns the first non-empty Answer or empty at SECONDS, so a slow or differently-timed phone copy fails it
+- source: feature-81265443f-red-20261117 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: not reproduced: fresh class alone pass (e27fxc, 21.1s) and fresh shard part 2/4 with its 10 predecessors pass (e27fxs, 26 classes); earlier assertions of the same test (request done, approved from telegram by the user) passed in CI, so the role check (HoldsRole via the 27.3 RolesOf) answered 1; RolesOf diff is behaviour-neutral (same call, same ISOK and ListFind, same 0 on error/empty)
+- 2026-11-17T06:24:00Z status=routed owner=burndown by=runner note=flake_candidate;one_rerun_rule;a_second_red_on_any_head_makes_it_a_story
