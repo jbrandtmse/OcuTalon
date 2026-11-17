@@ -10,7 +10,8 @@
 /// fixKind, no fixParameters and no fixSummary), except that a data_format_change may carry no fix at all, when fixKind, fixParameters and fixSummary are all
 /// absent or blank (a diagnosis that cannot tell which way a date reads, DW-644): it then still names its elementAtFault, and any one of the three alone is
 /// refused. It also requires an itemNoun, when given, with neither form blank, and no clock time (h:mm, an hour of 0 to 23 and
-/// minutes of 00 to 59, not part of a longer number or an address such as 10.0.0.5:1972) in cause or fixSummary (two rules, one for each). The fix kind is one that OcuTalon.Fix.Kind
+/// minutes of 00 to 59, not part of a longer number or an address such as 10.0.0.5:1972, and not the time of a date-time value: one directly after a date (d/m/y or y-m-d, then a space
+/// or T) or followed by :ss, such as 16/10/2026 09:30:00, DW-1438) in cause or fixSummary (two rules, one for each). The fix kind is one that OcuTalon.Fix.Kind
 /// names (AD-16), and its check of the fix parameters is the last: the fields it is given are the keys of the sample body of the evidence pack that the
 /// request carried, read through OcuTalon.Bridge.ReplyCheck, which Decide begins before it checks a reply. With no check begun, or an input that is not a
 /// pack with a sample body, no fix is accepted (fail closed); the check's refusal is wrapped in the rule fix-parameters-check, with its own reason embedded. A setting_change may name the kind that Fix.Kind DiagnosedFor lists for it (rollback_setting): with no
@@ -36,8 +37,9 @@ Parameter FIXCATEGORY = "data_format_change";
 /// list is filtered item by item): every text of the model that the payload holds.
 Parameter FILTERED = "Cause,FixSummary,ElementAtFault,Evidence,ItemNoun.One,ItemNoun.Other,FixParameters.Field,FixParameters.SourceFormat,FixParameters.TargetFormat";
 
-/// A clock time (h:mm) in a text, as a regular expression: not preceded by a digit, a dot or a colon, and not followed by a digit.
-Parameter CLOCKTIME = "(?<![0-9.:])([01]?[0-9]|2[0-3]):[0-5][0-9](?![0-9])";
+/// A clock time (h:mm) in a text, as a regular expression: not preceded by a digit, a dot or a colon, and not followed by a digit; and not the time of a date-time value (DW-1438):
+/// not directly after a date (d/m/y with a year of 2 to 4 digits, or y-m-d, then a space or a T) and not followed by :ss.
+Parameter CLOCKTIME = "(?<![0-9.:])(?<![0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4}[ T])(?<![0-9]{4}-[0-9]{1,2}-[0-9]{1,2}[ T])([01]?[0-9]|2[0-3]):[0-5][0-9](?![0-9])(?!:[0-5][0-9])";
 
 /// The fixed name of each rule of %OnValidateObject and the JSON field it reads, as tag:field, comma-separated: the parent's list (its rules, its length tags and its range tag), then this class's own rules in rule order,
 /// then this class's length tags, which no %OnValidateObject rule raises (see the class description).

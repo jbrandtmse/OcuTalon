@@ -15,6 +15,10 @@ Include Ensemble
 ///   - TestFailedSendGivesTheClaimBack: a send that fails or throws is an error status and the claim is given back, so that Slack's retry is processed;
 ///   - TestFirstTurnStartsTheThread: a day with no thread sends the Item in no session, and Trace.Started records the thread that the send gave; the next turn joins it;
 ///   - TestTypedApproveApprovesNothing: R6, a linked member's typed approve or yes sends one user Item and leaves the open approval request pending;
+///   - TestNotesWorkspace: (Story 27.3) a claimed event notes its team id in ^OcuTalonP.SlackW (a linked, an unlinked and a malformed-text event alike, overwritten only when it differs), a repeat claim
+///     notes nothing, an invalid team id is ignored, and with Slack off nothing is noted;
+///   - TestSecondTeamChangesNoLink: (Contest Planner ruling 2026-11-16) a workspace is noted and a member linked; an event of a second team from the same member id and one from an
+///     unlinked member id are each Ignored (other_team, unlinked), and no link row is created or changed;
 ///   - TestRecordsHoldNoIds: R8, no log row and no record of the service holds the text, the member id, the team id or the message, and an Ignored holds only three fields.
 /// The run's number is n from ^OcuTalonTest("SlackIn","n"); the probe records under ^OcuTalonTest("SlackInProbe", n), which OnAfterAllTests kills.
 Class OcuTalon.Test.Channel.SlackIn Extends %UnitTest.TestCase
@@ -40,6 +44,11 @@ Property HadSecret As %Boolean;
 
 Property HadToken As %Boolean;
 
+/// The workspace noted before the run, and whether there was one.
+Property SavedWorkspace As %String;
+
+Property HadWorkspace As %Boolean;
+
 Method OnBeforeAllTests() As %Status
 {
 	Set ..Number = $Increment(^OcuTalonTest("SlackIn", "n"))
@@ -47,6 +56,8 @@ Method OnBeforeAllTests() As %Status
 	Set ..SavedOnline = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
 	Set ..HadSecret = ##class(OcuTalon.Test.Agent.KeyScan).HasEnv("SLACK_SIGNING_SECRET")
 	Set ..HadToken = ##class(OcuTalon.Test.Agent.KeyScan).HasEnv("SLACK_BOT_TOKEN")
+	Set ..HadWorkspace = ($Data(^OcuTalonP.SlackW) > 0)
+	Set ..SavedWorkspace = $Get(^OcuTalonP.SlackW)
 	Set ..SavedSecret = $SYSTEM.Util.GetEnviron("SLACK_SIGNING_SECRET")
 	Set ..SavedToken = $SYSTEM.Util.GetEnviron("SLACK_BOT_TOKEN")
 	Quit $$$OK
@@ -56,6 +67,7 @@ Method OnBeforeOneTest() As %Status
 {
 	Kill ^OcuTalonTest("SlackInProbe", ..Number)
 	Kill ^OcuTalonP.SlackE
+	Kill ^OcuTalonP.SlackW
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.SlackLink WHERE TeamId LIKE 'T0FIXTURE%'")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
 	Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("SLACK_SIGNING_SECRET", "zz-slackin-secret")
@@ -73,6 +85,11 @@ Method OnAfterOneTest(testname As %String) As %Status
 Method OnAfterAllTests() As %Status
 {
 	Kill ^OcuTalonTest("SlackInProbe", ..Number)
+	If ..HadWorkspace {
+		Set ^OcuTalonP.SlackW = ..SavedWorkspace
+	} Else {
+		Kill ^OcuTalonP.SlackW
+	}
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	If ..HadSecret {
@@ -142,6 +159,64 @@ Method TestOtherTeamIgnored()
 	Kill ^OcuTalonTest("SlackInProbe", ..Number)
 	Do probe.OnProcessInput(..Event("Ev0OWNTEAM", ..#TEAM, ..#MEMBER, "zz the linked member"), .out)
 	Do $$$AssertEquals(..Targets(), "Conversation", "and the linked member of the linked workspace is a turn")
+}
+
+Method TestNotesWorkspace()
+{
+	Do ..LinkedSession("workspace")
+	Set probe = ..NewProbe()
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Workspace(), "", "no workspace is noted before the first event")
+	Do probe.OnProcessInput(..Event("Ev0WS1", ..#TEAM, "U0FIXTURE9", "zz an unlinked member"), .out)
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Workspace(), ..#TEAM, "an unlinked member's signed event notes its team")
+	Do probe.OnProcessInput(..Event("Ev0WS2", "T0FIXTURE2", "U0FIXTURE9", "zz another team"), .out)
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Workspace(), "T0FIXTURE2", "a different team overwrites it")
+	Do probe.OnProcessInput(..Event("Ev0WS3", ..#TEAM, ..#MEMBER, "zz the linked member"), .out)
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Workspace(), ..#TEAM, "so does a linked member's turn")
+	Kill ^OcuTalonP.SlackW
+	Do probe.OnProcessInput(..Event("Ev0WS3", "T0FIXTURE2", ..#MEMBER, "zz a repeat of the claimed event id"), .out)
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Workspace(), "", "a repeat claim notes nothing")
+	Do probe.OnProcessInput(..Event("Ev0WS4", "T0-BAD 1", ..#MEMBER, "zz a malformed team"), .out)
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Workspace(), "", "an invalid team id is not noted")
+	Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("SLACK_BOT_TOKEN", "")
+	Do probe.OnProcessInput(..Event("Ev0WS5", ..#TEAM, ..#MEMBER, "zz slack is off"), .out)
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Workspace(), "", "with Slack off nothing is noted")
+	Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("SLACK_BOT_TOKEN", "zz-slackin-token")
+	Set ^OcuTalonP.SlackW = ..#TEAM
+	Set bad = ##class(OcuTalon.Channel.Slack.Event).%New()
+	Set bad.EventId = "Ev0WS6"
+	Set bad.EnvelopeType = "app_rate_limited"
+	Do probe.OnProcessInput(bad, .out)
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Workspace(), ..#TEAM, "an envelope with no team leaves the noted workspace as it was")
+}
+
+/// The ruling on a second workspace: the event is Ignored under R2 and the rows of the link table are exactly as they were (count and every row's team, member and session).
+Method TestSecondTeamChangesNoLink()
+{
+	Set session = ..LinkedSession("secondteam")
+	Do ##class(OcuTalon.Data.SlackLink).NoteWorkspace(..#TEAM)
+	Set before = ..LinkRows()
+	Do $$$AssertTrue(before [ (..#TEAM_"|"_..#MEMBER_"|"_session), "control: the link row is there")
+	Set probe = ..NewProbe()
+	Do probe.OnProcessInput(..Event("Ev0SECOND1", "T0FIXTURE2", ..#MEMBER, "zz the same member id from a second team"), .out)
+	Do $$$AssertEquals(..Targets()_"|"_..Call(1, "kind")_"|"_..Call(1, "reason"), "Intake|message.im|other_team", "the linked member id from a second team is Ignored as other_team, with no Item")
+	Kill ^OcuTalonTest("SlackInProbe", ..Number)
+	Do probe.OnProcessInput(..Event("Ev0SECOND2", "T0FIXTURE2", "U0FIXTURE9", "zz an unlinked member id from a second team"), .out)
+	Do $$$AssertEquals(..Targets()_"|"_..Call(1, "kind")_"|"_..Call(1, "reason"), "Intake|message.im|unlinked", "an unlinked member id from a second team is Ignored as unlinked, with no Item")
+	Do $$$AssertEquals(..LinkRows(), before, "no link row was created or changed: the rows are exactly as they were")
+}
+
+/// Every row of the link table of the fixture workspaces as "team|member|session" lines in the order of their ids.
+Method LinkRows() As %String [ Private ]
+{
+	Set found = ""
+	Set id = ""
+	For {
+		Set id = $Order(^OcuTalonP.SlackLinkD(id))
+		Quit:id=""
+		Set row = ##class(OcuTalon.Data.SlackLink).%OpenId(id)
+		If $IsObject(row) Set found = found_row.TeamId_"|"_row.MemberId_"|"_row.SessionRef_$Char(10)
+	}
+	Quit found
 }
 
 Method TestBotIdIgnored()

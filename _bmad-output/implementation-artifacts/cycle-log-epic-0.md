@@ -1082,3 +1082,7 @@
 2026-11-16T18:18:59Z	DW-1421	public_text_approved	bridge-guide (a),(c) verbatim; (b) replaced by the Planner text; test-bridge-guide rule confidencetext pins the three lines (mutation red); ledger=DW-1438(LOW CLOCKTIME quotes a date-time)
 2026-11-16T18:27:19Z	DW-1421	fresh_check	round=3 env=bb8e4da08(+docs/records/guide-test) shard_lane-a@Eval_fwd=24/24(413s) rev=24/24(312s) test-bridge-guide=all_pass boundaries=pass torn_down
 2026-11-16T18:27:19Z	DW-1421	pushed	round=3 runners=8_free main_ci=none_queued release_pr=none
+2026-11-16T19:14:41Z	DW-1421	ci_flake	round=3 sha=3e3627c5f run=43928987062 job=iris(production) runner=ocutalon-ci-3 DW-306_row21 rerun_failed=1
+2026-11-16T19:48:15Z	DW-1421	ci_green	round=3 sha=3e3627c5f ci.yml=43928987062_attempt2_success(att1_DW-306_row21_ocutalon-ci-3) lane-a=43928987136_success at=19:48Z part_ready=sent
+2026-11-16T21:58:50Z	DW-1421	round4_done	by=lane-D(lead) commit=c726d5fd4 tests=ReplyCheck,Payload,Capture,Decide(warm_e0r4,green) eval-set=28/28_rules(capture_rerun_green_after_a_contended_run) mutations=Data_logged->ReplyCheck_red;old_CLOCKTIME->Payload_red;bare_time_missed->Payload_red model_facing=none
+2026-11-16T22:08:22Z	DW-1421	round4_addition	#9404->unexpected-field(ReplyCheck_row_8b;Payload_row_13;Capture) ledger=LOW_C2_item tests=ReplyCheck,Payload,Capture,Decide(warm_e0r4b,green) mutation=old_9404_words->ReplyCheck_rows_8,8b_red superseded_ci=43965489398,43965489389(cancelled)

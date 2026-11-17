@@ -703,7 +703,8 @@ test('S12: the Channels section shows the state of Telegram, read only', async (
   await expect(page.locator('app-email-section').getByRole('textbox'), 'the Email group\'s fields are its address, two servers, user name and password (Stories 21.2 and 21.6)').toHaveCount(5);
   const hookFields = await page.locator('app-webhooks-section').getByRole('textbox').count();
   expect(hookFields, 'the Webhooks group has at least its Name and Secret fields (Story 35.3)').toBeGreaterThanOrEqual(2);
-  await expect(page.getByRole('textbox'), 'and the section has no other field').toHaveCount(5 + hookFields);
+  await expect(page.locator('app-slack-section').getByRole('textbox'), 'the Slack group, made from its own chunk, has its one field, the Slack member ID (Story 27.3)').toHaveCount(1);
+  await expect(page.getByRole('textbox'), 'and the section has no other field').toHaveCount(5 + hookFields + 1);
   const notSetUp = page.getByText('Telegram not set up', { exact: true });
   const paused = page.getByText('Telegram paused', { exact: true });
   const on = page.getByText('Telegram on', { exact: true });
@@ -714,7 +715,7 @@ test('S12: the Channels section shows the state of Telegram, read only', async (
     await expect(page.getByText(/^Trying again at /), 'and when it tries again').toBeVisible();
   } else if (telegram.state === 'off' || telegram.state === 'rejected') {
     await expect(notSetUp, 'a bot that is not set up shows that').toBeVisible();
-    const link = page.getByRole('link', { name: 'How to set it up' });
+    const link = telegramBlock.getByRole('link', { name: 'How to set it up' });
     await expect(link, 'with the guide link').toHaveAttribute('href', /\/GUIDE\.md#telegram$/);
     await expect(link, 'that opens in a new tab').toHaveAttribute('target', '_blank');
   } else {

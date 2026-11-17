@@ -162,6 +162,10 @@ Method TestPayloadAccepted()
 	Set long = ..Usable()
 	Do long.evidence.%Push($Translate($Justify("", 128), " ", "e"))
 	Do $$$AssertStatusOK(..Check(long), "an evidence reference of 128 characters is accepted")
+	// DW-1438: the time of a date-time value that the cause quotes is no time of day
+	Set dated = ..Usable()
+	Set dated.cause = "The ShippedAt field holds 16/10/2026 09:30:00, a day-first date that the target reads month first."
+	Do $$$AssertStatusOK(..Check(dated), "a cause that quotes the date-time value 16/10/2026 09:30:00 is accepted")
 }
 
 Method TestPayloadRefused()
@@ -234,6 +238,9 @@ Method TestPayloadRefused()
 	Set reply = ..Usable()
 	Set reply.cause = "The orders failed since 14:12."
 	Do ..AssertRefused(reply, "a cause that holds a time")
+	Set reply = ..Usable()
+	Set reply.cause = "The orders failed at 09:30."
+	Do ..AssertRefused(reply, "a cause that holds a bare time of day, at 09:30 (DW-1438)")
 	Set reply = ..Usable()
 	Set reply.fixSummary = "resend them at 9:05"
 	Do ..AssertRefused(reply, "a fixSummary that holds a time")
@@ -709,9 +716,9 @@ Method TestEvidenceCut()
 	// row 13, the model sends the count
 	Set reply = ..Outage()
 	Set reply.evidenceCut = 3
-	Do ..AssertRefusal(reply, "ERROR #9404: an unexpected property", "row 13, a reply that names evidenceCut")
+	Do ..AssertRefusal(reply, "ERROR #9404 rule unexpected-field", "row 13, a reply that names evidenceCut")
 	Do reply.%Set("evidenceCut", "", "null")
-	Do ..AssertRefusal(reply, "ERROR #9404: an unexpected property", "row 13, a reply that names evidenceCut with null")
+	Do ..AssertRefusal(reply, "ERROR #9404 rule unexpected-field", "row 13, a reply that names evidenceCut with null")
 	// row 14, a dynamic object as input is not changed
 	Set reply = ..EvidenceReply([(e300)])
 	Set object = $ClassMethod(..#CLASS, "%New")
