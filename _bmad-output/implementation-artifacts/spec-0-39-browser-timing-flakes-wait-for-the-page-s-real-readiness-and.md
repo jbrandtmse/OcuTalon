@@ -2,7 +2,7 @@
 title: 'Story 0.39: Browser-timing flakes wait for the page''s real readiness, and a turn at the UTC day rollover does not error'
 type: 'bugfix'
 created: '2026-11-16'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '5c4f696180422939b27d92dcf4605b9be2581e94'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -231,6 +231,8 @@ Everything below was verified at `37b55fb8fbbca21a0709feadfbff4207bfb628e3` (fea
 - AC8: Given CI on this story's head, when it finishes, then every workflow is green.
 
 ## Spec Change Log
+
+- 2026-11-17 ~02:58Z, lead (orchestrator GO B2): pass B1 finalized at 83d8b53f6. Re-opened (`in-progress`) for pass B2 = Task 9 (DW-1450 row 6) and AC5; DW-1472 (T1/T4/T5 pairing-code counts across the one logged reload retry: confirm or fix); DW-1471 (a node row that drives two retries at one site through withOneReload itself, so removing `if (usedUp) throw usedUp` goes red); AC7 (the owed 10-iteration before/after counts: sign-in H2/H3/H7/U12, sign-in-3 Q7/HC8/MC3, demo-path T2, floor P4); and full live runs of the touched units (demo-path, sign-in parts holding history/usage, sign-in-3, floor, online-demo).
 
 - 2026-11-17 ~02:29Z, lead: pass A finalized at 8cc7a897f (groups 1-2 and the Task 3b pin). Spec re-opened (`in-progress`) for pass B1 = Task 0 (c) for group 5 (READ THE EXACT MOCK ERROR TEXT first), Tasks 10, 11, 12 (DW-1464), Task 8 (DW-1451) and AC4, AC6, plus the DW-1471 row if time allows. Pass B2 (after the quota hold) = Task 9 (DW-1450, row 6), AC5, DW-1472 (T1/T4/T5 counts), the 10-iteration counts still owed (AC7), P4 and T2 before-loops, and the full live units.
 
