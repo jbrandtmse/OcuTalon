@@ -11,7 +11,9 @@
 ///   - TestTelegramNeedsAPairedChat: telegram is refused for a user whose sessions have no paired chat and for a person by email, and accepted for a paired one;
 ///   - TestRefusals: each refused value names its field, and nothing is written or audited (the minutes, the user, the address, the channels, the shape);
 ///   - TestSaveAuditsEachChangeWithItsValues: each changed key has its Settings audit entry with from and to, the admin's user, the session and the web channel,
-///     written before its row, and a second save audits only what changed;
+///     written after its row, a second save audits only what changed, and a refused entry puts every row back;
+///   - TestRowFailureWritesNoEntry: a row write that fails rolls the save back as failed, with no audit write and no entry for its session in the real audit log (a control
+///     save of the same body with the same session writes its entries, which the same query finds);
 ///   - TestNothingChanged: the stored values again write no row and no audit entry;
 ///   - TestOnlineDemo: with the flag set the save is not_available with the accepted text, the handoff is gone and nothing is written; Values has no on-call member;
 ///   - TestHandoffMissing: a handoff with nothing behind it is failed, and Changes that are not exactly the handoff are refused, so that no body is read from them;
@@ -286,6 +288,7 @@ Method TestRefusals()
 	Do $$$AssertEquals(..Rows()_"|"_..Audits(), "0|0", "and nothing was written or audited")
 }
 
+/// Each changed key is written and then audited, in one transaction; a refused entry puts every row back, read from storage.
 Method TestSaveAuditsEachChangeWithItsValues()
 {
 	Set paired = ..User("p", 1), unpaired = ..User("u", 0)
@@ -319,6 +322,32 @@ Method TestSaveAuditsEachChangeWithItsValues()
 	Set result = ..Save(..Body(..Role("nobody", "", "", ""), ..Role("nobody", "", "", ""), 25))
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_audited", "an audit entry that cannot be written stops the save")
 	Do $$$AssertEquals(..Row("oncall.escalationMinutes"), "20", "and the row is as it was")
+	Do $$$AssertEquals(..Row("oncall.primary.user")_"|"_..Row("oncall.backup.email"), paired_"|c@x.io", "and so is every other row")
+	Do $$$AssertEquals($TLEVEL, 0, "no transaction is left open")
+}
+
+/// A row write that fails (the third of the save) answers failed with every row as before, no audit write and no entry for the session in the real audit log;
+/// a control save of the same body with the same session writes its four entries, which the same query finds.
+Method TestRowFailureWritesNoEntry()
+{
+	Set paired = ..User("p", 1)
+	Set body = ..Body(..Role("user", paired, "a@x.io", "telegram"), ..Role("nobody", "", "", ""), 20)
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do ..Reset()
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "applyAt") = 3
+	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set result = ..Save(body, ref)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "the third row write fails: failed")
+	Do $$$AssertEquals(..Rows(), 0, "every row is as before")
+	Do $$$AssertEquals(..Audits(), 0, "no audit write was attempted")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", ref).%Size(), 0, "and the real audit log has no entry for the session")
+	Do $$$AssertEquals($TLEVEL, 0, "no transaction is left open")
+	Do ..Reset()
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+	Set result = ..Save(body, ref)
+	Do $$$AssertEquals(result.Outcome, "done", "the control save is done")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", ref).%Size(), 4, "and the same query finds its four entries")
 }
 
 Method TestNothingChanged()
@@ -569,28 +598,28 @@ Method Handoff(body As %DynamicObject) As %String [ Private ]
 }
 
 /// A SaveSettings of the on-call section with the text as its Changes, from web_admin for zzadmin.
-Method Command(changes As %String) As OcuTalon.Msg.Command.SaveSettings [ Private ]
+Method Command(changes As %String, ref As %String = {..#REF}) As OcuTalon.Msg.Command.SaveSettings [ Private ]
 {
 	Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
 	Set command.Slug = "on-call"
 	Set command.Changes = changes
 	Set command.ActingUser = "zzadmin"
-	Set command.SessionRef = ..#REF
+	Set command.SessionRef = ref
 	Set command.Origin = "web_admin"
 	Quit command
 }
 
 /// Saves the body as the route does: through a handoff, with {"handoff": uri} as the command's Changes.
-Method Save(body As %DynamicObject) As OcuTalon.Msg.CommandResult [ Private ]
+Method Save(body As %DynamicObject, ref As %String = {..#REF}) As OcuTalon.Msg.CommandResult [ Private ]
 {
-	Quit ..SaveText(body.%ToJSON())
+	Quit ..SaveText(body.%ToJSON(), ref)
 }
 
 /// Saves the text as the body of the handoff (a blank text for an empty one, which a handoff cannot hold).
-Method SaveText(text As %String) As OcuTalon.Msg.CommandResult [ Private ]
+Method SaveText(text As %String, ref As %String = {..#REF}) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Do $$$AssertStatusOK(##class(OcuTalon.Core.SecretHandoff).Put($Select(text = "": " ", 1: text), .uri), "the text is put into a handoff")
-	Quit ..Carry(..Command({"handoff": (uri)}.%ToJSON()))
+	Quit ..Carry(..Command({"handoff": (uri)}.%ToJSON(), ref))
 }
 
 Method Carry(command As OcuTalon.Msg.Command) As OcuTalon.Msg.CommandResult [ Private ]
