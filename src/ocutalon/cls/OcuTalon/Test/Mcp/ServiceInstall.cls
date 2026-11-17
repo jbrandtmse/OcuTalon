@@ -341,7 +341,7 @@ Method TestClosesPublicPermission()
 }
 
 /// S-28.3-4: a part of the step that fails after the resource exists leaves no public permission open. The real resource has a public permission, and the step is called with an application
-/// role name, then an application name, that Security refuses: it returns the error and the real resource's public permission is "" afterwards. The test closes it itself at its end, whatever
+/// role name, then an application name, that Security refuses (a control shows which part failed): it returns the error and the real resource's public permission is "" afterwards. The test closes it itself at its end, whatever
 /// the step did, and removes its scratch role; OnAfterOneTest puts the installed objects back.
 Method TestClosesPublicPermissionWhenAPartFails()
 {
@@ -364,6 +364,11 @@ Method TestClosesPublicPermissionWhenAPartFails()
 				Set sc = $ClassMethod(step, "ApplyService", "", resource, scratchRole)
 			}
 			Do $$$AssertTrue($$$ISERR(sc), "the step returns the error of the failing " _ failing)
+			If failing = "role" {
+				Do $$$AssertEquals(..Application(scratchApp), "<none>", "control: the step stopped at the role, before the application")
+			} Else {
+				Do $$$AssertEquals(..RoleOf(scratchRole), "exists", "control: the role part ran, so the application part failed")
+			}
 			Do ..ResourceOf(resource, .res)
 			Do $$$AssertEquals($Get(res("PublicPermission")), "", "and the public permission is gone, the resource being the real one, also after the failing " _ failing)
 		}
