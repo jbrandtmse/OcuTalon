@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-17-2026 03:10
+last_updated: 11-17-2026 03:13
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -408,7 +408,7 @@ development_status:
   epic-28: in-progress
   28-1-draft-a-transform-change-as-a-proposal-that-is-never-applied: backlog
   28-2-fade-unused-memories-and-merge-duplicates-nightly: done
-  28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients: in-progress
+  28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients: review
   28-4-merge-duplicate-memories-nightly: backlog
   28-5-connect-an-mcp-client-through-iris-mcp-server: backlog
   epic-28-retrospective: optional
