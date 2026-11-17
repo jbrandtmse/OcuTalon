@@ -1086,3 +1086,4 @@
 2026-11-17T00:30:50Z	Story 0.38	stage_spawned	stage=plan spawn_at=2026-11-17T00:30:50Z model=opus effort=high
 2026-11-17T00:40:12Z	Story 0.38	story_created	spawn_at=2026-11-17T00:32:00Z model=opus build_status=ready-for-dev warnings=oversized,depends-on-27.3
 2026-11-17T00:40:12Z	Story 0.38	spec_validated	gate=planner_pending(email_check_in_Channel.Email.In_not_Conversation(AC1_wording);not_user_record_reuses_Channel.Slack.Ignored;pair-time_not_user_outcome_answers_existing_pairing.badCode;email_has_no_per-person_link;depends_on_27.3_MayChat)
+2026-11-17T00:41:29Z	Story 0.38	spec_gate_ruled	source=<coordination>/prompts/story-038-dw1284-rulings-20261117.md approved(build_after_27.3) items=AC1_corrected,Channel.Refused_neutral_class,pair_badCode,mailbox_save_refusal(PUBLIC_TEXT_to_Planner),telegram_file_checked_before_download
