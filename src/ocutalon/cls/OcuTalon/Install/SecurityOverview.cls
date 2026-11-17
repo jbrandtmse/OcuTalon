@@ -5,8 +5,8 @@
 ///     OcuTalon.Agent. and the toolsets of OcuTalon.Tools., the scope of Install.Step.Tools.Toolsets; each toolset is expanded with
 ///     %Discover, because the catalog cannot expand toolsets, plus one row for each entry of the product's classification (Install.Step.Production ClassificationEntries) that names AI Hub's knowledge base, RagRows),
 ///     the fix kinds, the roles as Install.Step.Roles.Compose composes them
-///     from the Grants() of the areas, the grants that only demo mode adds (Install.Step.Demo WithOrdersData and WithOrders), the SQL
-///     privileges of the trace role, the service user and the application roles of the web applications;
+///     from the Grants() of the areas and, off the online demo, the application role that the Mcp step makes itself (Install.Step.Mcp APPROLE), the grants that only demo mode adds (Install.Step.Demo WithOrdersData and WithOrders), the SQL
+///     privileges of the trace role, the service user and the application roles of the Web step's web applications and, off the online demo, of the MCP server's application;
 ///   - Sections renders the facts as the Markdown of the keys tools, fix-kinds and privileges, in a sorted and deterministic order, in ASCII; the tools section ends
 ///     with the sentence RAGSTATEMENT about the one tool that has no class of its own (Story 19.4), the fix-kinds section with the sentence ONLINESTATEMENT about the online demo's service role (Story 23.2) and, after it, PRODUCTIONCONFIGSTATEMENT about the local install's one %Ens_ProductionConfig grant (Story 23.3),
 ///     and the privileges section has the sentence MCPSTATEMENT after the Roles table, about the resource that each MCP server has (Story 22.6), built from the installer's own names
@@ -263,7 +263,7 @@ ClassMethod FixKindRows() As %DynamicArray
 	Quit result
 }
 
-/// The role rows of Model, from the composed grants and the areas that declare them.
+/// The role rows of Model, from the composed grants and the areas that declare them, and, off the online demo, the Mcp step's application role (AppRoleGrants).
 ClassMethod RoleRows() As %DynamicArray
 {
 	$$$ThrowOnError(##class(OcuTalon.Install.Step.Roles).Compose(.composed))
@@ -370,7 +370,7 @@ ClassMethod ServiceUser() As %DynamicObject
 	Quit {"user": (##class(OcuTalon.Install.Step.Users).#SERVICEUSER), "roles": [(##class(OcuTalon.Install.Step.Users).#SERVICEROLE)], "login": "disabled"}
 }
 
-/// The web applications of the Web step (Install.Step.Web.Definitions) and, off the online demo, the MCP server's (Install.Step.Mcp ServiceApp) that add roles to their requests, how each signs
+/// The web applications of the Web step (Install.Step.Web.Definitions), and off the online demo the MCP server's application (Install.Step.Mcp ServiceApp), that add roles to their requests, how each signs
 /// its users in, and those roles: an application whose MatchRoles is not empty. Throws a status that names the application when its MatchRoles is not of the form :role[:role...], which
 /// adds the roles to every request of the application; a match role would make that claim untrue.
 ClassMethod Applications() As %DynamicArray

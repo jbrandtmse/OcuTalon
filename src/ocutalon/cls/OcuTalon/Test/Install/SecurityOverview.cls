@@ -362,9 +362,11 @@ Method TestMcpResourceStatement()
 
 /// Story 28.3 (Integration AC; AD-21, AD-24): the privileges section holds the MCP server section between the MCPSTATEMENT sentence and "### With demo mode on": a table with exactly the
 /// tools of OcuTalon.Mcp.Service's specification (check_status and recent_activity of OcuTalon.Mcp.ServiceRead, safe, read-only), then the Contest Planner's sentence
-/// (MCPSERVERSTATEMENT), word for word, with the names the Mcp step creates. The Roles table lists OcuTalonMCPClient with its one grant, declared by Mcp.
+/// (MCPSERVERSTATEMENT), word for word, with the names the Mcp step creates. The Roles table lists OcuTalonMCPClient with its one grant and OcuTalonMCPApp with its three read
+/// grants, each declared by Mcp, and the Application roles table lists /mcp/ocutalon with that application role. Needs an install off the online demo, where the Mcp step makes them.
 Method TestMcpServerSection()
 {
+	Do $$$AssertTrue('##class(OcuTalon.Install.Step.Mcp).OnlineDemo(), "control: the install is off the online demo, where the Mcp step makes the MCP server's objects")
 	Set lf = $Char(10)
 	Set sentence = "OcuTalon's MCP server, `OcuTalon.Mcp.Service` at `/mcp/ocutalon` (password sign-in), offers only the read-only tools above. A user needs the role `OcuTalonMCPClient`, which holds only U on `OcuTalon_MCPServer`. While a request runs in `/mcp/ocutalon`, IRIS adds the application role `OcuTalonMCPApp`, which no user holds and which gives R on OcuTalon's code, data and private databases, with no write and no SQL privilege. Outside that application, `OcuTalonMCPClient` reads none of OcuTalon's databases. Each tool runs as that user, reads only that user's own OcuTalon session and writes an `MCP` audit entry. On the online demo the application, the resource and the roles don't exist."
 	Do $$$AssertEquals($Parameter(..#GENERATOR, "MCPSERVERSTATEMENT"), sentence, "the MCP server sentence is the ruled one, word for word")
@@ -393,7 +395,8 @@ Method TestMcpServerSection()
 /// DW-213: the grants that only demo mode adds are listed apart: the service role Read on the OCUORDERS data database, and the trace role Read
 /// on its code and data databases. The trace role's SQL SELECT on Ens.MessageHeader is listed in OCUTALON, and in OCUORDERS with demo mode on. The
 /// service user holds exactly the service role with login disabled, and /ocutalon and /ocutalon/api, alone of the Web step's applications but for the
-/// webhook application /ocutalon/hook (off the online demo, with Web.HOOKROLE and no sign-in), add roles to their requests: the roles of Web.APPLICATIONROLES.
+/// webhook application /ocutalon/hook (off the online demo, with Web.HOOKROLE and no sign-in), add roles to their requests: the roles of Web.APPLICATIONROLES;
+/// off the online demo /mcp/ocutalon adds only the MCP application role (password sign-in), which is then also listed among the roles.
 Method TestDemoOnlyGrantsListed()
 {
 	Set model = $ClassMethod(..#GENERATOR, "Model")
@@ -434,7 +437,8 @@ Method TestDemoOnlyGrantsListed()
 }
 
 /// The Declared by column: each grant of a role names the installer areas, by their short class names, whose Grants() declare that role and
-/// resource, and a role with no resource names the areas that declare the role; the table shows both kinds of row.
+/// resource, and a role with no resource names the areas that declare the role; the table shows both kinds of row. The MCP server's application role
+/// (Install.Step.Mcp APPROLE), which the Mcp step makes itself and no Grants() declares, shows its three read grants declared by Mcp, off the online demo only.
 Method TestRoleRowsDeclaredBy()
 {
 	Set sc = ##class(OcuTalon.Install.Registry).Declared("Grants", .entries)
@@ -469,7 +473,8 @@ Method TestRoleRowsDeclaredBy()
 		}
 	}
 	Do $$$AssertEquals(bad, "", "each row names the areas whose Grants() declare it")
-	Do $$$AssertEquals(appRows, "%DB_OCUTALON_CODE:R:Mcp;%DB_OCUTALON_DATA:R:Mcp;%DB_OCUTALON_PRIVATE:R:Mcp", "the MCP server's application role, which the Mcp step makes and no Grants() declares, lists its three read grants, declared by Mcp")
+	Set wanted = $Select(##class(OcuTalon.Install.Step.Mcp).OnlineDemo(): "", 1: "%DB_OCUTALON_CODE:R:Mcp;%DB_OCUTALON_DATA:R:Mcp;%DB_OCUTALON_PRIVATE:R:Mcp")
+	Do $$$AssertEquals(appRows, wanted, "the MCP server's application role, which the Mcp step makes and no Grants() declares, lists its three read grants, declared by Mcp, off the online demo only")
 	Do $$$AssertEquals(..Areas(.areas, appRole, "%DB_OCUTALON_CODE") _ ..Areas(.areas, appRole, "%DB_OCUTALON_DATA") _ ..Areas(.areas, appRole, "%DB_OCUTALON_PRIVATE") _ ..Areas(.areas, appRole, " "), "", "control: no area declares that role or any grant of it through Grants()")
 	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
 	Do $$$AssertTrue(..HasLine(sections("privileges"), "| `OcuTalonServiceRole` | `%Ens_MessageResend` | U | `Fix` |"), "the table names Fix for the service role's resend grant")
@@ -684,7 +689,7 @@ Method AssertTurnTool(ByRef runners, rows As %DynamicArray) [ Private ]
 /// The security records of the instance are the model: each listed role holds exactly its resources and permissions (the base grants, and with
 /// demo mode on the demo-only ones); the service user holds exactly the service role, with login disabled; the trace role's SQL privileges are
 /// the listed SELECT rows; the listed roles are granted no other role and the service user has no escalation role; and each application of the
-/// Web step adds exactly the roles listed for it, none when it is not listed. A difference names the role, the resource and the permission,
+/// Web step, and the MCP server's application (listed exactly when the install is off the online demo), adds exactly the roles listed for it, none when it is not listed. A difference names the role, the resource and the permission,
 /// and whether it is extra or missing.
 Method TestPrivilegesMatchSecurityRecords()
 {
@@ -739,6 +744,7 @@ Method TestPrivilegesMatchSecurityRecords()
 		Do $$$AssertEquals(..MatchRoles(name), $Get(listed(name)), name_$Select($Data(listed(name)): " adds the listed roles to its requests", 1: " adds no role, as it is not listed"))
 	}
 	Set mcpApp = ##class(OcuTalon.Install.Step.Mcp).#SERVICEAPP
+	Do $$$AssertEquals(''$Data(listed(mcpApp)), '##class(OcuTalon.Install.Step.Mcp).OnlineDemo(), mcpApp_" is listed exactly when the install is off the online demo")
 	Do $$$AssertEquals(..MatchRoles(mcpApp), $Get(listed(mcpApp), "<none>"), mcpApp_" adds exactly the roles listed for it")
 }
 

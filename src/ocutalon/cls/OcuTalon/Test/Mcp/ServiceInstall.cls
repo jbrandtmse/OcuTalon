@@ -316,7 +316,8 @@ ClassMethod Drift(application As %String, appRole As %String, resource As %Strin
 	Do ##class(Security.Resources).Modify(resource, .properties)
 }
 
-/// S-28.3-4: with the online demo off, the real resource is given a public permission, and the step closes it again, for RW and for U. OnAfterOneTest puts the installed objects back.
+/// S-28.3-4: with the online demo off, the real resource is given a public permission, and the step closes it again, for RW and for U. The test closes it itself at its end, whatever
+/// the step did, and OnAfterOneTest puts the installed objects back.
 Method TestClosesPublicPermission()
 {
 	If '..Guard() Quit
@@ -334,6 +335,7 @@ Method TestClosesPublicPermission()
 		Do ..ResourceOf(resource, .res)
 		Do $$$AssertEquals($Get(res("PublicPermission")), "", "and the public permission " _ permission _ " is gone")
 	}
+	Do $$$AssertStatusOK(..SetPublicPermission(resource, ""), "the resource holds no public permission after the test, also when the step left one")
 }
 
 /// Sets the public permission of the resource. Runs in %SYS.
