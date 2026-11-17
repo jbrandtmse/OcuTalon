@@ -2,12 +2,27 @@
 title: 'Story 0.38: Telegram and email turns check the person''s role at use time, as web chat does'
 type: 'bugfix'
 created: '2026-11-17'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '1470a99cfb52a660f0fe13471a7286af00993b1d'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized', 'release-blocker-for-any-epic-27-release']
-deferred: []
+deferred:
+  - summary: >-
+      Telegram approval answers (Got it and the approval buttons) check roles only, so a disabled or expired user whose chat is still paired can answer them.
+    evidence: |-
+      AnswersIn.FromTelegram and Bridge.Approval HoldsRole do not read the account state; the spec's Design Notes list it under "Known, not changed". Claim read, not run.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Core/AnswersIn.cls
+    severity: medium
+  - summary: >-
+      Test.Schedule.Heartbeat TestStubSkipped fails when its class runs after the Schedule reminder and task-resume classes (reverse order of lane-b part 2/6).
+    evidence: |-
+      The red text is an Ens.Alarm "Message can not be found, timer event ignored" warning written by earlier classes and found by the test's scan for error or alert rows; the forward order passes; no file of this diff is involved.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Schedule/Heartbeat.cls
+    severity: medium
 ---
 
 <intent-contract>
@@ -249,6 +264,35 @@ Base: `OCT-epic0-dw1284` at `be0aa2133be8eeda7f951af4c357f87d14f1baf3` (feature 
 
 ## Review Triage Log
 
+### 2026-11-17 — Review pass
+- verdicts: 31 findings — high 0, medium 8, low 17, false 6, maybe-false 0
+- findings:
+  - `[medium]` `[reject]` Blind 1 and Edge 1: a refused email is marked seen, so a transient read failure of the role or account drops a real email for good — ruled behavior: the Planner's 01:10Z item 5 ("a refused email is marked seen and not re-read") and the Always fail-closed rule; closed `by-design`, a read error is not told apart from a "no" on purpose.
+  - `[low]` `[reject]` Blind 2, Edge 2 and the Edge claim: a Telegram text turn from a person who may not chat takes an allowance entry and can draw the existing allowance notice before Conversation refuses it — ruled: item 5 ("the Telegram allowance entry is used") and the plan's decision that only files are checked in TelegramIn; closed `by-design`, no turn, model call or content is taken.
+  - `[medium]` `[defer]` Blind 3: Telegram approval answers (`AnswersIn.FromTelegram`, "Got it") still check roles only, so a disabled or expired user whose chat is still paired can answer an approval button — not caused by this change (the spec's "Known, not changed"); deferred, severity medium (verified by reading the unchanged approval path).
+  - `[low]` `[reject]` Blind 4 and Edge 4: SaveEmail refuses a disconnect by a session whose user may not chat — spec-bound (Tasks: the check comes before TakeMailbox for every save); an admin-only user is 403 at `OnPreDispatch` before SaveEmail, so only an admin whose account was disabled or expired mid-session reaches it (Task 0 (b)); closed `by-design`.
+  - `[low]` `[reject]` Blind 5: the web-chat rule exists in `Shell.HasRole`/`ViewerOnly` and in `Core.Access.RolesMayChat` — binding ruling (i): the rule lives only in Core.Access, `Web.Api.OnPreDispatch` is unchanged, an agreement test over 10 role sets keeps them equal (Shell cannot call Core under AD-3); closed `by-design`.
+  - `[medium]` `[patch]` Blind 6, Edge 3 (the boundary half) and Verification-gap 1: the expiry boundary (today, yesterday) is not pinned — patched: two cases in `Test.Core.Access` TestAccountState, the boundary measured on IRIS first, two mutations observed red.
+  - `[low]` `[patch]` Blind 7: `Fixture.SetAccount` relied on `CreateUser` leaving AccountNeverExpires 0 — patched: a date with no `never` sets AccountNeverExpires 0.
+  - `[low]` `[reject]` Blind 8 and Edge 6: `Channel.Refused` properties have no VALUELIST — the spec defines the two properties as plain strings and every sender sets fixed literals; nothing user-reachable can write another value; closed `wontfix-theoretical`.
+  - `[low]` `[reject]` Blind 9: no test of an empty `IrisUser` on the email and Telegram-file paths — every caller reaches `Core.Access.MayChat`, which TestAccountState pins to 0 for an empty and a missing user; not worth a test per caller.
+  - `[low]` `[patch]` Blind 10: `email-section.ts` computes the failed-or-refused text twice — patched: one `shown` constant for the signal and the announcement (`failed` is still used by other lines); the web bundle rebuilt and live sign-in-2 part 6/8 passed.
+  - `[false]` `[reject]` Blind 11: two privileged reads per MayChat call — a role read and a `%SYS` read of one user per turn or file Item; no failure is shown or reachable at this volume (a person's own messages).
+  - `[low]` `[reject]` Edge 5: SessionOps.Pair answers `paired` for a used code repeated by the chat already on its session before the MayChat check — the spec keeps that repeat unchanged (it links nothing and changes nothing); closed `by-design`.
+  - `[false]` `[reject]` Edge 3 (the local-date half): `+$Horolog` is the server's local date — IRIS's own sign-in decision was measured against the same local date: ExpirationDate today signs in, yesterday is refused (Verification, review pass).
+  - `[low]` `[reject]` Edge 7: a partial `Fixture.Clean(refs)` also drops a recorded account that has no ref yet — deliberate, so that an account a failed `ChatSession` left (the cleanup-even-on-failure pin) is always removable; test classes run one at a time on a stack.
+  - `[medium]` `[patch]` Verification-gap 2: account state at Slack link time and in the Slack user list has no test — patched: disabled and expired accounts in `Test.Core.SettingsSlack` TestLinkRefusesUsersWhoMayNotChat and TestListOffersOnlyUsersWhoMayChat, two mutations observed red.
+  - `[medium]` `[patch]` Verification-gap 3: the product's own `SendRefused` (TelegramIn to Intake) never ran in any test — patched: the probe's `RealRefused` runs it and records the target and the Channel.Refused given to `SendRequestAsync`; mutation (send to Notify) observed red.
+  - `[low]` `[patch]` Verification-gap 4: the success-path "nothing is logged" assertion matched on an empty start text — patched: it counts the fixed `LOGREFUSED` warning (the failed-send case already finds one).
+  - `[low]` `[patch]` Verification-gap 5: `TestChannelsNotUser` assumed that the process user may not chat — patched: a precondition assertion.
+  - `[low]` `[patch]` Verification-gap 6: the Integration AC had no `mutation:` lines and the "after the keys' transaction" mutation was weaker than the AC's — the lines are written under `## Verification` (Slack list, Slack link, the real SendRefused, the AC's own placement of the SaveEmail check), each observed red.
+  - `[low]` `[reject]` Verification-gap 7: TestNoWebReference scans four classes — the AC names those four; a Core-to-Web edge elsewhere is caught by `test-boundaries.sh`; closed `by-design`.
+  - `[medium]` `[defer]` Verification-gap 8 (order independence) with its hermeticity notes: forward and reverse shards were run; the reverse order turned up one red class, `Test.Schedule.Heartbeat` TestStubSkipped (an `Ens.Alarm` timer warning left by earlier Schedule classes), a pre-existing order dependency in files this diff does not touch; deferred. The `TelegramChat` TestNotices red seen once by the handoff did not recur in two further runs of its shard pieces; no-argument `Fixture.Clean()` in OnBeforeAllTests is safe because classes run one at a time.
+  - `[false]` `[reject]` Intent 1: email is checked in EmailIn, not in Conversation — the amended AC1 and the Planner's 01:10Z item 1 place it there (no email Item ever reaches Conversation); nothing diverges from the ruled intent.
+  - `[false]` `[reject]` Intent 2: Telegram has two check surfaces (files in TelegramIn, text in Conversation) — ruled: the Planner's item 5 ("a refused Telegram file: NOT OK to download first"), plus the AD-33 exception (iv).
+  - `[false]` `[reject]` Intent 3: a new user-visible sentence under Save, against "existing texts only" — the Planner approved the one sentence verbatim (01:20Z, Spec Change Log); the diff holds exactly that text.
+  - `[false]` `[reject]` Intent 4: scope beyond the intent's sentence (DW-1465 account state, DW-1466 the shared predicate in Core, `Channel.Refused`) — ruled into this story (02:05Z, Spec Change Log).
+
 ## Design Notes
 
 **RELEASE BLOCKER (ruled).** Story 0.38 blocks the next release that contains ANY Epic 27 story; no release ships Slack without it. **Release note** (rulings), stated plainly as a fix: "a disabled or expired IRIS account, or a user without the chat role, could still start conversations through Telegram or email; now refused."
@@ -307,9 +351,69 @@ Standing criterion (Rule 19): every test added or changed passes on a fresh envi
 
 **Mutations:** one per AC as written in Tasks & Acceptance; record each here as `mutation: <change> -> <test> red`, with `git status --short` and `git diff --stat` unchanged after the revert.
 
+
+**Task 0 record** (lane-D warm throwaway `e038iw`, namespace OCUTALON, fixture accounts only, measured 2026-11-17; nothing granted to any account):
+- (a) On a fixture account holding OcuTalonUser, `Security.Users.Get` from a `New $Namespace` switch to `%SYS` answers, as the Code Map says: enabled and unexpired `Enabled` 1, `ExpirationDate` ""; after `Modify` with `Enabled` 0: `Enabled` 0; with `ExpirationDate` two days ago: `Enabled` 1, `ExpirationDate` "2026-11-15" (ODBC date, on 2026-11-17); 30 days ahead: "2026-12-17"; no account: error #838; empty name: error #5813. `RolesOf` answers 1 and the roles `OcuTalonUser` in all four states (disabled and expired included), and 0 with no roles for no account and for "". The caller's namespace is OCUTALON after every call. The reads also ran in the production jobs (SessionOps and Conversation, `_Ensemble`, `%All`) with no new grant: the disabled and the expired account were refused there and an enabled one allowed (`TelegramPair` TestNotUserIsBadCode, `live:slack-hook` phase 7).
+- (a2) An account made with `AccountNeverExpires` 1 (as `live_fixture_user` makes its fixture accounts) cannot hold an `ExpirationDate`: `Modify` leaves it "" and the account still signs in (CSP login 200 two days "past" the date), while the same account with `AccountNeverExpires` 0 and `ExpirationDate` two days ago is refused at sign-in (401). `Usable` therefore reads `Enabled` and `ExpirationDate` only and an account that never expires is usable, as for web chat; `Test.Core.Access` TestAccountState pins that case, and `live:slack-hook` makes its expiring account with `AccountNeverExpires` 0.
+- (b) YES. A fixture admin (OcuTalonAdmin and OcuTalonUser) signed in over HTTP (CSP session); its account was then expired by `Security.Users.Modify` (ExpirationDate two days ago) and, separately, disabled (`Enabled` 0): in both cases `GET /v1/settings` stayed 200 and `POST /v1/settings/channels` passed `OnPreDispatch` and reached `SaveChannels` (a body naming `origin` was answered by SaveChannels' own 400 bad_settings, a check that runs after OnPreDispatch). M2's browser pin therefore stays: `web/e2e/settings/email.spec.ts` E8.
+
+**Implement record** (lane D, tags `e038i` fresh and `e038iw` warm; every stack torn down at the end):
+- Warm classes `passed`: `Test.Core.Access`, `Test.Data.FixtureAccounts` (new), `Test.Core.ConversationNotUser`, `Test.Core.ConversationFiles`, `Test.Core.ConversationTurns`, `Test.Core.SessionOps`, `Test.Core.SessionOpsProduction`, `Test.Core.AnswersTelegramProduction`, `Test.Core.Intake`, `Test.Core.SettingsEmail`, `Test.Core.SettingsSlack`, `Test.Core.SettingsSave`, `Test.Core.SecretHandoff`, `Test.Core.CommandsStep4`, `Test.Core.Routing`, `Test.Core.PersonaAnswers`, `Test.Channel.EmailIn`, `Test.Channel.TelegramFile`, `Test.Channel.TelegramPair`, `Test.Channel.TelegramDigest`, `Test.Channel.TelegramApproval`, `Test.Channel.TelegramChat`, `Test.Channel.TelegramIn`, `Test.Channel.TelegramOut`, `Test.Channel.TelegramNoToken`, `Test.Channel.TelegramPause`, `Test.Channel.TelegramInTurn`, `Test.Channel.PageRoute` (also on a fresh stack), `Test.Watch.PagingLive`, `Test.Tools.Email`, `Test.Digest.Coverage`, `Test.Fix.Email`, `Test.Web.ViewerApi`, `Test.Web.SettingsApi`, `Test.Web.PairingApi`, `Test.Web.Status`. Fresh single-class runs (`ci/iris.sh class`, tag `e038i`) of `Test.Core.Access`, `Test.Core.ConversationNotUser`, `Test.Data.FixtureAccounts` and `Test.Channel.PageRoute` passed; the lane shards were NOT run in full (lane-a has 280 classes, lane-b 169), so the forward and reverse shard pieces of the Commands paragraph are still owed to the lead. `Test.Channel.TelegramChat` TestNotices failed once in a whole-class run (the notices of the tell-now fallback did not reach the chat in time) and passed alone and in a second whole-class run.
+- `OCUTALON_RUN_TAG=e038i ci/iris.sh live slack-hook`: all checks PASS (132), phase 7 included: the disabled and the expired account (both still holding OcuTalonUser) are refused with one `Channel.Refused` {slack, not_user} each, no `Slack.Ignored` carries not_user.
+- `OCUTALON_RUN_TAG=e038i ci/iris.sh live sign-in-2 --part 6/8` (the part that holds `settings/email.spec.ts`): 38 passed, E8 included.
+- `node --test web/scripts/*.test.mjs` 2230 passed (email-view.test.mjs 12); `docker/tests/test-boundaries.sh`, `test-storage.sh` and `test-class-rules.sh` pass.
+- Tests that needed a real account beyond the Shared surfaces list (found by running them): `Test.Core.SettingsEmail` (new `NewSession`, the fixed Refs are fixture sessions), `Test.Web.SettingsApi` TestChannelsRoute (the route's session is the process user's, so `Test.Web.ApiProbe` SubmitChannels sets the command's SessionRef to the fixture owner in ^OcuTalonTest("ApiProbe", "owner")), `Test.Core.SettingsSlack` (DropAccount of the Fixture), `Test.Channel.PageRoute` and `Test.Watch.PagingLive` (pairing through /start), `Test.Channel.TelegramPageFixture` Move, `Test.Core.InProduction` (new ChatSession and KeepSession, shared by SessionOpsProduction, AnswersTelegramProduction, PageRoute, PagingLive and EmailLive). Where a route ties a session to the process user (PairingApi, PersonaAnswers, TelegramApproval, PageRoute) the session belongs to a fixture account while /start pairs it and to the process user again afterwards.
+- The only new namespace switch is `Core.Access.Usable` (New $Namespace; ObjectScript has no FINALLY, and `New $Namespace` restores the namespace on every exit, an error included; the Catch answers 0); `Core.Access.Enabled` is the private read inside it that `Test.Core.AccessProbe` overrides to throw.
+
+mutation: `RolesMayChat` also accepts OcuTalonAdmin -> Test.Web.ViewerApi TestMayChatIsTheRuleOfWebChat red
+mutation: `RolesMayChat` calls `Shell.HasRole` and `ViewerOnly` -> Test.Core.Access TestNoWebReference red
+mutation: `Usable` returns 1 -> Test.Core.Access TestAccountState red (disabled and expired accepted); and `live:slack-hook` phase 7 red (10 checks: the disabled and expired accounts get Turns)
+mutation: `Enabled` no longer reads `Enabled` -> Test.Core.Access TestAccountState red ("a disabled account may not chat"); `Enabled` no longer reads the expiry -> TestAccountState red ("an account past its expiry may not chat")
+mutation: `Usable` without `New $Namespace` -> Test.Core.Access TestNamespaceIsRestored red ("the caller's namespace is its own again"); an error inside the read answering 0 and not throwing is pinned by TestErrorInTheReadMayNotChat (the probe's read throws)
+mutation: `CHECKEDCHANNEL` back to "slack" -> Test.Core.ConversationNotUser TestTelegramViewerRefused red (and TestDisabledRefused, TestExpiredRefused, TestTelegram* red)
+mutation: delete TelegramIn's MayChat branch in `Turn` -> Test.Channel.TelegramFile TestRefusedSenderFileNotFetched red
+mutation: delete the `Core.Files.Discard` call of `Conversation.RecordNotUser` -> Test.Core.ConversationNotUser TestRefusedFileIsDiscarded red
+mutation: delete the MayChat line in `SessionOps.Pair` -> Test.Core.SessionOps TestPairRefusesWhoMayNotChat red
+mutation: delete the MayChat line in `EmailIn.OnProcessInput` -> Test.Channel.EmailIn TestNotUserOwnerRefused red (and TestNotUserRoleRemovedAfterSave, TestNotUserAdminOnlyFollowsWebChat, TestNotUserDisabledOrExpired, TestNotUserMailIsSeen, TestNotUserRecordFailureIsOneWarning)
+mutation: the refusal of an email answers an error status instead of OK -> Test.Channel.EmailIn TestNotUserMailIsSeen red (and the other not_user tests, which assert the OK status)
+mutation: delete the SaveEmail check -> Test.Core.SettingsEmail TestSaveRefusesWhoMayNotChat red
+mutation: change one word of `MESSAGEEMAILNOTUSER` -> Test.Core.SettingsEmail TestSaveRefusesWhoMayNotChat red, and `settings/email.spec.ts` E8 red (live sign-in-2 part 6/8: 1 failed, "expect(locator).toHaveText(expected) failed")
+mutation: move the SaveEmail check after `TakeMailbox` -> Test.Core.SettingsEmail TestSaveRefusesWhoMayNotChat red (the address and user references were taken from the hand-off)
+mutation: Web.Api no longer maps not_user to 409 -> Test.Web.SettingsApi TestChannelsNotUser red
+mutation: `notUserText` ignores the status -> web/scripts/email-view.test.mjs "takes the sentence of a save that the server refused ..." red
+mutation: Conversation sends a `Slack.Ignored` (reason not_user) again -> Test.Core.ConversationNotUser (AssertRefused) red
+mutation: Intake no longer drops a `Channel.Refused` silently -> Test.Core.Intake TestRefusedIsDropped red
+mutation: `Fixture.Clean` no longer drops the accounts -> Test.Data.FixtureAccounts TestChatSessionMakesARealAccount red (and TestCleanDropsAccountOfADeletedRow, TestFailedTestLeavesNoAccount)
+mutation: `Fixture.ChatSession` records the account only after the session row is saved -> Test.Data.FixtureAccounts TestFailedTestLeavesNoAccount red
+mutation: a test that fails (an injected failed assertion and an exception in ConversationNotUser TestViewerOnlyRefused) -> with the real `Clean` the account query after the class run holds no ZzChat or zzconvnu account; with `Clean`'s account drop removed the same run leaves 20 orphaned accounts (control)
+After each revert `git status --short` and `git diff --stat` were identical to before (checked by the mutation script), and the class was green again.
+
+**Review pass additions** (lane D, warm `e038iw`; each mutation reverted with `git status --short` and `git diff --stat` identical, and the class green again after the revert):
+mutation: `Enabled` compares `ExpirationDate` with `>` instead of `'<` (an account that expires today is refused) -> Test.Core.Access TestAccountState red ("an account whose ExpirationDate is today may still chat")
+mutation: `Enabled` compares with `'< (+$Horolog-1)` (an account one day past its expiry is allowed) -> Test.Core.Access TestAccountState red ("an account whose ExpirationDate was yesterday may not chat")
+mutation: `SettingsOps.ListSlack` checks roles only (RolesOf and RolesMayChat, no account state) -> Test.Core.SettingsSlack TestListOffersOnlyUsersWhoMayChat red ("neither a disabled account nor an expired one")
+mutation: `SettingsOps.LinkSlack` checks roles only -> Test.Core.SettingsSlack TestLinkRefusesUsersWhoMayNotChat red (the disabled and the expired account are linked)
+mutation: `Telegram.In.SendRefused` sends to `..#NOTIFY` instead of `..#INTAKE` -> Test.Channel.TelegramFile TestRefusedSenderFileNotFetched red ("the product's own SendRefused sends one request, to the target Intake"; the probe's RealRefused runs the product's method and records what `SendRequestAsync` was given)
+mutation: the SaveEmail check moved after the keys' transaction (before `Set written = ...`) -> Test.Core.SettingsEmail TestSaveRefusesWhoMayNotChat red (no email key written, nothing audited and the hand-off references all failed, for the admin-only and the viewer account)
+The expiry boundary was measured on the warm throwaway before the test was written (Security.Users.Create with ExpirationDate today, yesterday and tomorrow, then `$SYSTEM.Security.Login`): today and tomorrow sign in, yesterday is refused, so ExpirationDate is the last day an account may be used, as the class documentation says, against the same local date (`+$Horolog`) that `Enabled` compares with.
+
+**Review pass verification** (lane D; tags `e038i` fresh, `e038iw` warm, all stacks torn down, `docker ps -a` holds no `e038` container and the lane's lock folder holds no lock): `bash ci/checks.sh` passed (exit 0, no FAIL line); `node --test web/scripts/email-view.test.mjs` 12 passed; warm `Test.Core.Access`, `Test.Core.SettingsSlack`, `Test.Core.SettingsEmail`, `Test.Web.SettingsApi` and `Test.Channel.TelegramFile` passed after the patches; `ci/iris.sh live sign-in-2 --part 6/8` (the part with `settings/email.spec.ts`, E8 included, the web bundle rebuilt from the patched `email-section.ts`) passed. Fresh environment (Rule 19, a fresh throwaway per piece, forward then `--reverse`): `shard lane-b --part k/6` (170 classes) and `shard lane-a --part k/10` (280 classes) passed forward (16 of 16 pieces) and in reverse, with one class red in the reverse order: `Test.Schedule.Heartbeat` TestStubSkipped in lane-b part 2/6 (an `Ens.Alarm` "Message ... can not be found, timer event ignored" warning that the reminder and task-resume classes it now follows leave in the log; none of the Schedule classes or the files they call is in this diff), deferred below. The warm stack held no `Zz*` account at the end of the work (no orphaned IRIS user).
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (halt after planning), re-derived on `be0aa2133be8eeda7f951af4c357f87d14f1baf3` with Story 27.3 merged in. For the lead before implement: four deviations under `## Design Notes` (deviation 1 departs from the 02:05Z ruling's literal "Web.Public.Shell then calls Core", which AD-3 forbids; deviation 3 is an AD-3 amendment, a veto-window item); the spine updates (Rule 20); re-own DW-1465 and DW-1466 to this story's key; the epics.md AC1 amendment is applied (Spec Change Log).
+**Summary.** Telegram and email turns, pairing, the Slack link and list, and the mailbox save now ask one rule, `OcuTalon.Core.Access` (`RolesMayChat(roles)` is web chat's rule; `MayChat(irisUser)` is `Bridge.Approval.RolesOf`, `RolesMayChat`, then the account state: Enabled and not past its ExpirationDate, read in `%SYS` by one private, read-only method with `New $Namespace`, fail closed). `Web.Public.Shell.MayChat` is deleted and `Web.Api.OnPreDispatch` is unchanged; Conversation checks slack and telegram; TelegramIn refuses a file before any fetch or store; EmailIn refuses before an Item is made and records the mail seen; `SessionOps.Pair` answers `not_user` (the chat gets the existing `pairing.badCode`); `SaveEmail` refuses with the approved sentence (409 `not_user`, shown under Save); a refusal is one content-free `Channel.Refused` that Intake drops. `Test.Data.Fixture.ChatSession` makes a real OcuTalonUser account and its cleanup runs even when a test fails (pinned; no orphaned user). RELEASE BLOCKER for any release with an Epic 27 story: this is the fix.
+
+**Files changed (Lane B unless marked).** `Core/Access.cls` (new), `Channel/Refused.cls` (new), `Core/Conversation.cls`, `Core/Intake.cls`, `Core/SessionOps.cls`, `Core/SettingsOps.cls`, `Channel/Email/In.cls`, `Channel/Slack/Ignored.cls`, `Web/Api.cls`, `Web/Public/Shell.cls`, `Channel/Telegram/In.cls` (Lane A, AD-33 exception (iv)), `src/bridge/.../Bridge/Approval.cls` (Lane A, comment only), `web/src/app/settings/email-view.ts` and `email-section.ts`, `web/e2e/settings/email.spec.ts` (E8), `web/scripts/email-view.test.mjs`, `docker/tests/test-slack-hook.sh`; tests: `Test/Core/Access`, `AccessProbe`, `ConversationNotUser`, `ConversationProbe`, `ConversationFiles`, `ConversationTurns`, `Intake`, `SessionOps`, `SessionOpsProduction`, `SettingsEmail`, `SettingsSlack`, `CommandsStep4`, `InProduction`, `PersonaAnswers`, `AnswersTelegramProduction`, `Test/Data/Fixture`, `FixtureAccounts` (new), `Test/Channel/EmailIn` (+ probe, adapter), `EmailLive`, `LiveCase`, `PageRoute`, `TelegramFile`, `TelegramInProbe`, `TelegramPair`, `TelegramApproval`, `TelegramPageFixture` (Lane A tests: LiveCase, TelegramFile, TelegramInProbe, TelegramPair and the others of Test/Channel that need a real account), `Test/Watch/PagingLive`, `Test/Web/ApiProbe`, `PairingApi`, `SettingsApi`, `ViewerApi`.
+
+**Review.** 31 findings from four layers (triage log): patches applied 8 rows (3 medium entries: the expiry boundary, the Slack list and link account state, the product's own `SendRefused`; 5 low: SetAccount default, the duplicated text expression, the vacuous warning count, a precondition, the missing mutation lines), deferred 2 (Telegram approval answers do not read account state; `Test.Schedule.Heartbeat` is order dependent), rejected the rest with recorded reasons (ruled or spec-bound behavior, theoretical, or false). Patched counts: high 0, medium 3, low 5.
+
+**Binding conditions, each with its mutation red and reverted `cmp`-identical** (lines under `## Verification`): (i) the rule only in Core.Access, agreement over 10 role sets including a `%All`-only and an admin-only set; (ii) the two method names; (iii) the one `%SYS` method: namespace restored on every path (ObjectScript has no FINALLY; `New $Namespace` restores it on every exit, an error included, and the Catch answers 0), disabled, expired, boundary today and yesterday, enabled with OcuTalonUser allowed; (iv) the AD-33 exception covers `Channel/Telegram/In.cls` and its lane-A tests only, plus the `Bridge/Approval.cls` comment; fixture cleanup on a failed test; Task 0 (b) answered YES, so the browser case E8 stays.
+
+**Verification.** See `## Verification`: the warm class runs, `live slack-hook` (132 checks, phase 7 with the disabled and expired accounts), `live sign-in-2 --part 6/8` (again after the review patches), `bash ci/checks.sh`, `node --test web/scripts/email-view.test.mjs`, and the fresh-environment shards (lane-b 170 and lane-a 280 classes) forward and in reverse.
+
+**Follow-up review recommended: true.** Three MED entries were patched on a first pass. The unverified risk: the patched tests (Slack list and link, the real `SendRefused`, the expiry boundary) ran warm and in the fresh shards, but `live:slack-hook` was not re-run after the patches, and the order dependency of `Test.Schedule.Heartbeat` in reverse is open (deferred, not this change's).
+
+**Residual risks.** Approval answers still read roles only (deferred). The inactivity limit of an account is not read. A refused email that is read again never returns if the role does. CI on the head must be green (owner of the push).

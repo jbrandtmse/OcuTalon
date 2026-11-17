@@ -1,27 +1,29 @@
-/// Tests of the use-time role check that Conversation makes for an Item of channel slack (Story 27.3; AD-14, AD-24; Contest Planner ruling (a)): the Item is taken only when its session's
-/// IRIS user may chat by web chat's rule (Web.Public.Shell MayChat on the user's recursed role set, read by Bridge.Approval RolesOf). Safe on a slot: no production runs there, so the tests call
-/// OnRequest on shadow instances of OcuTalon.Test.Core.ConversationProbe, with real IRIS users that hold real roles (the fixture users are made in %SYS and removed after the last test; a role
-/// the instance does not have is made and removed with them). No Delivery row can be written here (only the channel Out operations write one): live:slack-hook phase 7 pins that.
-///   - TestViewerOnlyRefused: a viewer-only user's Item makes no Turn, publishes nothing, sends nothing to Decide (no model call, no tool call) or Notify (no reply is sent)
-///     and leaves exactly one Channel.Slack.Ignored for Intake, with the kind message.im, the reason not_user and no event id;
+/// Tests of the use-time check that Conversation makes for an Item of channel slack or telegram (Stories 27.3 and 0.38; AD-14, AD-24; DW-1284, DW-1465; Contest Planner rulings): the Item is taken
+/// only when its session's IRIS user may chat now (Core.Access MayChat: web chat's rule on the user's recursed role set, read by Bridge.Approval RolesOf, and an account that is Enabled and not
+/// past its expiry). Safe on a slot: no production runs there, so the tests call OnRequest on shadow instances of OcuTalon.Test.Core.ConversationProbe, with real IRIS accounts that hold real
+/// roles and a real account state (Test.Data.Fixture ChatSession and SetAccount; Fixture.Clean drops the accounts with the rows, a failed test included). No Delivery row can be written here (only the
+/// channel Out operations write one): live:slack-hook phase 7 pins that. A refusal is always one Channel.Refused {channel, not_user} for Intake and nothing else (AssertRefused).
+///   - TestViewerOnlyRefused: a viewer-only user's slack Item makes no Turn, publishes nothing, sends nothing to Decide (no model call, no tool call) or Notify (no reply is sent)
+///     and leaves exactly one Channel.Refused for Intake, with the channel slack and the reason not_user;
 ///   - TestRoleRemovedAfterLinking: a user who holds OcuTalonUser has a turn; after the role is removed, the next Item of the same session is refused with one record and no second Turn;
 ///   - TestAdminWithUserAllowed: a user with OcuTalonAdmin and OcuTalonUser has a Turn and its Decide request, and no record, and a user who holds both OcuTalonUser and OcuTalonViewer
 ///     has a Turn, as web chat decides;
 ///   - TestAdminOnlyFollowsWebChat: a user with OcuTalonAdmin alone is refused, and the control is web chat's own check on the same roles (HasRole 0, so web chat refuses it);
 ///     a viewer who also holds OcuTalonAdmin is refused, as web chat decides;
+///   - TestDisabledRefused, TestExpiredRefused (Story 0.38, DW-1465): an Item of a slack and of a telegram session whose OcuTalonUser account is disabled, or whose ExpirationDate was two days ago,
+///     is refused as above (the account still holds the role, so it is the account state that refuses it), and the same Item of an enabled account is taken (control);
+///   - TestTelegramViewerRefused, TestTelegramRoleRemovedAfterPairing, TestTelegramAdminWithUserAllowed, TestTelegramAdminOnlyFollowsWebChat: the same pins for channel telegram, the record naming telegram;
+///   - TestRefusedFileIsDiscarded: a telegram file Item of a user who may no longer chat is refused as above, its stored file is discarded at once, and nothing reads it (no ReadFile call, no Turn);
 ///   - TestUnreadableRolesRefused: a session whose IRIS user has no account, and one with no IRIS user, are refused, and RolesOf answers 0 with no roles for each;
 ///   - TestRoleReadErrorRefused: a role check that throws (the probe's MayChat seam) refuses the Item of a user who would be allowed, with the same one record;
 ///   - TestRecordFailureIsOneContentFreeWarning: when the send of the not_user record fails, the Item is still not taken, the status is OK (no retry) and one warning is logged that names
 ///     no text, user or Ref;
-///   - TestOtherChannelsUnchecked: an Item of the web or telegram channel of a viewer-only user is taken as before, with no record.
+///   - TestOtherChannelsUnchecked: an Item of the web channel of a viewer-only user is taken as before, with no record.
 Class OcuTalon.Test.Core.ConversationNotUser Extends %UnitTest.TestCase
 {
 
-/// The first characters of the fixture users' names.
-Parameter USER = "ZzConvNU";
-
-/// The roles that the tests hand out.
-Parameter ROLES = "OcuTalonUser,OcuTalonAdmin,OcuTalonViewer";
+/// The first characters of the names that the fixture accounts are made from.
+Parameter USER = "zzconvnu";
 
 /// The run's number.
 Property Number As %Integer;
@@ -31,12 +33,6 @@ Property Refs As %String(MAXLEN = "");
 
 /// The Refs of the fixture sessions of the run, comma-separated.
 Property Sessions As %String(MAXLEN = "");
-
-/// The fixture users, comma-separated.
-Property Users As %String(MAXLEN = "");
-
-/// The roles that this run made, comma-separated.
-Property MadeRoles As %String;
 
 /// The number of recorded calls that were already looked at.
 Property Seen As %Integer;
@@ -49,7 +45,7 @@ Method OnBeforeAllTests() As %Status
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Set ..Number = $Increment(^OcuTalonTest("ConversationNotUser", "n"))
 	Set ..LogMark = ..LastLog()
-	Set ..MadeRoles = ##class(OcuTalon.Test.Install.RolesAssign).EnsureRoles(..#ROLES)
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -70,70 +66,62 @@ Method OnAfterAllTests() As %Status
 {
 	Kill ^OcuTalonTest("ConversationProbe", ..Number)
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
-	For i = 1:1:$Length(..Users, ",") {
-		If $Piece(..Users, ",", i) '= "" Do ..DropUser($Piece(..Users, ",", i))
-	}
-	If ..MadeRoles '= "" Do ##class(OcuTalon.Test.Install.RolesAssign).DropRoles(..MadeRoles)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND SourceClass = ?", ..LogMark, "OcuTalon.Test.Core.ConversationProbe")
 	Quit $SYSTEM.Status.OK()
 }
 
 Method TestViewerOnlyRefused()
 {
-	Set session = ..Session("viewer", "OcuTalonViewer", .user)
-	Set mark = ..LastLog()
-	Set item = ..Item(session, "slack", "zz viewer text zqx")
-	Do $$$AssertStatusOK(..NewProbe().OnRequest(item, .response), "the Item is handled with an OK status")
-	Do ..AssertRefused(session, user, "zz viewer text zqx", mark, "a viewer-only user's Item")
+	Do ..ViewerRefused("slack")
+}
+
+Method TestTelegramViewerRefused()
+{
+	Do ..ViewerRefused("telegram")
 }
 
 Method TestRoleRemovedAfterLinking()
 {
-	Set session = ..Session("removed", "OcuTalonUser", .user)
-	Do $$$AssertStatusOK(..NewProbe().OnRequest(..Item(session, "slack", "zz first"), .response), "a user's first Item is handled")
-	Do $$$AssertEquals(..Turns(session).Count(), 1, "it makes a Turn while the user holds OcuTalonUser")
-	Do $$$AssertEquals($ListLength(..Sent("Decide", "decide")), 1, "and its decide request goes to Decide")
-	Do $$$AssertEquals($ListLength(..Sent("Intake")), 0, "with no record")
-	Set mark = ..LastLog()
-	Do ..RemoveRole(user, "OcuTalonUser")
-	Set before = ..Calls()
-	Do $$$AssertStatusOK(..NewProbe().OnRequest(..Item(session, "slack", "zz second"), .response), "the next Item is handled")
-	Do $$$AssertEquals(..Turns(session).Count(), 1, "once the role is removed it makes no second Turn")
-	Do $$$AssertEquals(..Calls() - before, 1, "and it makes exactly one send")
-	Do $$$AssertEquals($ListLength(..Sent("Decide", "decide")), 1, "which is no further request to Decide")
-	Set sent = ..Sent("Intake")
-	Do $$$AssertEquals($ListLength(sent), 1, "but one record to Intake")
-	Do $$$AssertEquals(..Call($List(sent, 1), "reason"), "not_user", "whose reason is not_user")
-	Do $$$AssertEquals(..Warnings(mark), 0, "and nothing is logged")
+	Do ..RoleRemoved("slack")
+}
+
+Method TestTelegramRoleRemovedAfterPairing()
+{
+	Do ..RoleRemoved("telegram")
 }
 
 Method TestAdminWithUserAllowed()
 {
-	Set session = ..Session("adminuser", "OcuTalonAdmin,OcuTalonUser", .user)
-	Do $$$AssertStatusOK(..NewProbe().OnRequest(..Item(session, "slack", "zz admin and user"), .response), "the Item is handled")
-	Do $$$AssertEquals(..Turns(session).Count(), 1, "an admin who also holds OcuTalonUser has a Turn")
-	Do $$$AssertEquals($ListLength(..Sent("Decide", "decide")), 1, "and its decide request goes to Decide")
-	Do $$$AssertEquals($ListLength(..Sent("Intake")), 0, "with no record")
-	Set session = ..Session("userviewer", "OcuTalonUser,OcuTalonViewer", .both)
-	Do $$$AssertStatusOK(..NewProbe().OnRequest(..Item(session, "slack", "zz user and viewer"), .response), "an Item of a user who holds both roles is handled")
-	Do $$$AssertEquals(..Turns(session).Count(), 1, "a user who holds OcuTalonUser and OcuTalonViewer has a Turn, as web chat lets them chat")
+	Do ..AdminWithUser("slack")
+}
+
+Method TestTelegramAdminWithUserAllowed()
+{
+	Do ..AdminWithUser("telegram")
 }
 
 Method TestAdminOnlyFollowsWebChat()
 {
-	Set session = ..Session("adminonly", "OcuTalonAdmin", .user)
-	Do $$$AssertTrue(##class(OcuTalon.Bridge.Approval).RolesOf(user, .roles), "the admin-only user's roles are read")
-	Do $$$AssertEquals(##class(OcuTalon.Web.Public.Shell).HasRole(roles), 0, "control: web chat does not let a user with OcuTalonAdmin alone in (neither role that opens the application)")
-	Set mark = ..LastLog()
-	Do $$$AssertStatusOK(..NewProbe().OnRequest(..Item(session, "slack", "zz admin only"), .response), "the Item is handled")
-	Do ..AssertRefused(session, user, "zz admin only", mark, "an admin-only user's Item, as web chat refuses that user")
-	Set session = ..Session("adminviewer", "OcuTalonAdmin,OcuTalonViewer", .viewer)
-	Do $$$AssertTrue(##class(OcuTalon.Bridge.Approval).RolesOf(viewer, .roles), "the admin viewer's roles are read")
-	Do $$$AssertEquals(##class(OcuTalon.Web.Public.Shell).ViewerOnly(roles), 1, "control: web chat treats a viewer who is also an admin as a viewer (403 read_only)")
+	Do ..AdminOnly("slack")
+}
+
+Method TestTelegramAdminOnlyFollowsWebChat()
+{
+	Do ..AdminOnly("telegram")
+}
+
+Method TestDisabledRefused()
+{
+	Do ..AccountRefused("slack", "disabled")
 	Do ..Reset()
-	Set mark = ..LastLog()
-	Do $$$AssertStatusOK(..NewProbe().OnRequest(..Item(session, "slack", "zz admin viewer"), .response), "an Item of a viewer who holds OcuTalonAdmin is handled")
-	Do ..AssertRefused(session, viewer, "zz admin viewer", mark, "a viewer's Item even when the viewer holds OcuTalonAdmin")
+	Do ..AccountRefused("telegram", "disabled")
+}
+
+Method TestExpiredRefused()
+{
+	Do ..AccountRefused("slack", "expired")
+	Do ..Reset()
+	Do ..AccountRefused("telegram", "expired")
 }
 
 Method TestUnreadableRolesRefused()
@@ -184,19 +172,117 @@ Method TestRecordFailureIsOneContentFreeWarning()
 	Do $$$AssertTrue((text '[ "zz send fails text") && (text '[ user) && (text '[ session), "and it holds no text, user name or Ref")
 }
 
+/// A telegram file Item of a user whose account may no longer chat (the race after TelegramIn's check): it is refused as any refusal, its stored file is discarded at once and nothing reads it:
+/// the probe's ReadFile is never called and no Turn is made. The control is the same file of a user who may chat, which is read.
+Method TestRefusedFileIsDiscarded()
+{
+	Set session = ..Session("filerace", "OcuTalonUser", .user)
+	Set file = ##class(OcuTalon.Test.Data.Fixture).SentFile(session, "zz-race.pdf")
+	Do $$$AssertTrue($IsObject(##class(OcuTalon.Data.SentFile).RefIndexOpen(file)), "the stored file exists")
+	Do ..RemoveRole(user, "OcuTalonUser")
+	Set mark = ..LastLog()
+	Set item = ..FileItem(session, file)
+	Do $$$AssertStatusOK(..NewProbe().OnRequest(item, .response), "the file Item is handled")
+	Do ..AssertRefused(session, user, "", mark, "a file Item of a user who may no longer chat", "telegram")
+	Do $$$AssertEquals($IsObject(##class(OcuTalon.Data.SentFile).RefIndexOpen(file)), 0, "its stored file is discarded at once")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("ConversationProbe", ..Number, "readcalls")), 0, "and nothing read it")
+}
+
 Method TestOtherChannelsUnchecked()
 {
 	Set session = ..Session("web", "OcuTalonViewer", .user)
-	For channel = "web", "telegram" {
-		Set before = ..Turns(session).Count()
-		Do $$$AssertStatusOK(..NewProbe().OnRequest(..Item(session, channel, "zz "_channel), .response), channel_": the Item is handled")
-		Do $$$AssertEquals(..Turns(session).Count() - before, 1, channel_": it makes a Turn, as before: only channel slack is checked here")
-	}
+	Set before = ..Turns(session).Count()
+	Do $$$AssertStatusOK(..NewProbe().OnRequest(..Item(session, "web", "zz web"), .response), "web: the Item is handled")
+	Do $$$AssertEquals(..Turns(session).Count() - before, 1, "web: it makes a Turn, as before: only channels slack and telegram are checked here")
 	Do $$$AssertEquals($ListLength(..Sent("Intake")), 0, "and no record is made")
 }
 
-/// Asserts the whole of a refusal: no Turn, no event, nothing sent but the one Ignored for Intake, every field of which is fixed (so it holds no text, user or session), and nothing logged.
-Method AssertRefused(session As %String, user As %String, text As %String, mark As %Integer, what As %String) [ Private ]
+/// A viewer-only user's Item of the channel is refused (see the class comment).
+Method ViewerRefused(channel As %String) [ Private ]
+{
+	Set session = ..Session("viewer"_channel, "OcuTalonViewer", .user)
+	Set mark = ..LastLog()
+	Set item = ..Item(session, channel, "zz viewer text zqx")
+	Do $$$AssertStatusOK(..NewProbe().OnRequest(item, .response), channel_": the Item is handled with an OK status")
+	Do ..AssertRefused(session, user, "zz viewer text zqx", mark, channel_": a viewer-only user's Item", channel)
+}
+
+/// A user who holds OcuTalonUser has a turn; once the role is removed the next Item is refused with one record and no second Turn.
+Method RoleRemoved(channel As %String) [ Private ]
+{
+	Set session = ..Session("removed"_channel, "OcuTalonUser", .user)
+	Do $$$AssertStatusOK(..NewProbe().OnRequest(..Item(session, channel, "zz first"), .response), channel_": a user's first Item is handled")
+	Do $$$AssertEquals(..Turns(session).Count(), 1, channel_": it makes a Turn while the user holds OcuTalonUser")
+	Do $$$AssertEquals($ListLength(..Sent("Decide", "decide")), 1, channel_": and its decide request goes to Decide")
+	Do $$$AssertEquals($ListLength(..Sent("Intake")), 0, channel_": with no record")
+	Set mark = ..LastLog()
+	Do ..RemoveRole(user, "OcuTalonUser")
+	Set before = ..Calls()
+	Do $$$AssertStatusOK(..NewProbe().OnRequest(..Item(session, channel, "zz second"), .response), channel_": the next Item is handled")
+	Do $$$AssertEquals(..Turns(session).Count(), 1, channel_": once the role is removed it makes no second Turn")
+	Do $$$AssertEquals(..Calls() - before, 1, channel_": and it makes exactly one send")
+	Do $$$AssertEquals($ListLength(..Sent("Decide", "decide")), 1, channel_": which is no further request to Decide")
+	Set sent = ..Sent("Intake")
+	Do $$$AssertEquals($ListLength(sent), 1, channel_": but one record to Intake")
+	Do $$$AssertEquals(..Call($List(sent, 1), "channel")_"|"_..Call($List(sent, 1), "reason"), channel_"|not_user", channel_": whose channel is its own and whose reason is not_user")
+	Do $$$AssertEquals(..Warnings(mark), 0, channel_": and nothing is logged")
+}
+
+/// An admin who also holds OcuTalonUser has a Turn, and so does a user who holds OcuTalonUser and OcuTalonViewer (web chat's rule).
+Method AdminWithUser(channel As %String) [ Private ]
+{
+	Set session = ..Session("adminuser"_channel, "OcuTalonAdmin,OcuTalonUser", .user)
+	Do $$$AssertStatusOK(..NewProbe().OnRequest(..Item(session, channel, "zz admin and user"), .response), channel_": the Item is handled")
+	Do $$$AssertEquals(..Turns(session).Count(), 1, channel_": an admin who also holds OcuTalonUser has a Turn")
+	Do $$$AssertEquals($ListLength(..Sent("Decide", "decide")), 1, channel_": and its decide request goes to Decide")
+	Do $$$AssertEquals($ListLength(..Sent("Intake")), 0, channel_": with no record")
+	Set session = ..Session("userviewer"_channel, "OcuTalonUser,OcuTalonViewer", .both)
+	Do $$$AssertStatusOK(..NewProbe().OnRequest(..Item(session, channel, "zz user and viewer"), .response), channel_": an Item of a user who holds both roles is handled")
+	Do $$$AssertEquals(..Turns(session).Count(), 1, channel_": a user who holds OcuTalonUser and OcuTalonViewer has a Turn, as web chat lets them chat")
+}
+
+/// A user with OcuTalonAdmin alone, and a viewer who is also an admin, are refused, as web chat refuses them; the control is web chat's own check on the same roles.
+Method AdminOnly(channel As %String) [ Private ]
+{
+	Set session = ..Session("adminonly"_channel, "OcuTalonAdmin", .user)
+	Do $$$AssertTrue(##class(OcuTalon.Bridge.Approval).RolesOf(user, .roles), channel_": the admin-only user's roles are read")
+	Do $$$AssertEquals(##class(OcuTalon.Web.Public.Shell).HasRole(roles), 0, channel_": control: web chat does not let a user with OcuTalonAdmin alone in (neither role that opens the application)")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Access).RolesMayChat(roles), 0, channel_": and Core.Access agrees")
+	Set mark = ..LastLog()
+	Do $$$AssertStatusOK(..NewProbe().OnRequest(..Item(session, channel, "zz admin only"), .response), channel_": the Item is handled")
+	Do ..AssertRefused(session, user, "zz admin only", mark, channel_": an admin-only user's Item, as web chat refuses that user", channel)
+	Set session = ..Session("adminviewer"_channel, "OcuTalonAdmin,OcuTalonViewer", .viewer)
+	Do $$$AssertTrue(##class(OcuTalon.Bridge.Approval).RolesOf(viewer, .roles), channel_": the admin viewer's roles are read")
+	Do $$$AssertEquals(##class(OcuTalon.Web.Public.Shell).ViewerOnly(roles), 1, channel_": control: web chat treats a viewer who is also an admin as a viewer (403 read_only)")
+	Do ..Reset()
+	Set mark = ..LastLog()
+	Do $$$AssertStatusOK(..NewProbe().OnRequest(..Item(session, channel, "zz admin viewer"), .response), channel_": an Item of a viewer who holds OcuTalonAdmin is handled")
+	Do ..AssertRefused(session, viewer, "zz admin viewer", mark, channel_": a viewer's Item even when the viewer holds OcuTalonAdmin", channel)
+}
+
+/// An OcuTalonUser account that is enabled (control) has its Item taken; once it is disabled ("disabled") or its ExpirationDate is two days ago ("expired") the next Item is refused, although
+/// the account still holds the role (RolesOf reads it).
+Method AccountRefused(channel As %String, state As %String) [ Private ]
+{
+	Set session = ..Session(state_channel, "OcuTalonUser", .user)
+	Do $$$AssertStatusOK(..NewProbe().OnRequest(..Item(session, channel, "zz usable"), .response), channel_" "_state_": the Item of the usable account is handled")
+	Do $$$AssertEquals(..Turns(session).Count(), 1, channel_" "_state_": control: it makes a Turn while the account is usable")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Data.Fixture).SetAccount(user, $Select(state = "disabled": 0, 1: 1), $Select(state = "expired": -2, 1: "")), channel_" "_state_": the account is "_state)
+	Do $$$AssertTrue(##class(OcuTalon.Bridge.Approval).RolesOf(user, .roles) && (roles = "OcuTalonUser"), channel_" "_state_": the account still holds OcuTalonUser")
+	Set mark = ..LastLog()
+	Set before = ..Calls()
+	Do $$$AssertStatusOK(..NewProbe().OnRequest(..Item(session, channel, "zz after the change"), .response), channel_" "_state_": the next Item is handled")
+	Do $$$AssertEquals(..Turns(session).Count(), 1, channel_" "_state_": it makes no second Turn")
+	Do $$$AssertEquals(..Calls() - before, 1, channel_" "_state_": and it makes exactly one send")
+	Set sent = ..Sent("Intake")
+	Do $$$AssertEquals($ListLength(sent), 1, channel_" "_state_": one record, for Intake")
+	Do $$$AssertEquals(..Call($List(sent, 1), "class")_"|"_..Call($List(sent, 1), "channel")_"|"_..Call($List(sent, 1), "reason"), "OcuTalon.Channel.Refused|"_channel_"|not_user", channel_" "_state_": a Channel.Refused of its channel with the reason not_user")
+	Do $$$AssertEquals($ListLength(..Sent("Notify")), 0, channel_" "_state_": and no reply is sent")
+	Do $$$AssertEquals(..Warnings(mark), 0, channel_" "_state_": nothing is logged")
+}
+
+/// Asserts the whole of a refusal: no Turn, no event, nothing sent but the one Channel.Refused for Intake, every field of which is fixed (so it holds no text, user or session), and nothing logged.
+Method AssertRefused(session As %String, user As %String, text As %String, mark As %Integer, what As %String, channel As %String = "slack") [ Private ]
 {
 	Do $$$AssertEquals(..Turns(session).Count(), 0, what_" makes no Turn")
 	Do $$$AssertEquals(..ChatEvents(session), 0, what_" publishes nothing")
@@ -207,17 +293,15 @@ Method AssertRefused(session As %String, user As %String, text As %String, mark 
 	Do $$$AssertEquals($ListLength(sent), 1, what_" leaves one record, for Intake")
 	Set n = $ListGet(sent, 1)
 	If n = "" Quit
-	Do $$$AssertEquals(..Call(n, "class")_"|"_..Call(n, "kind")_"|"_..Call(n, "reason")_"|"_..Call(n, "eventId"), "OcuTalon.Channel.Slack.Ignored|message.im|not_user|", what_": it is a Slack Ignored with the reason not_user and no event id")
+	Do $$$AssertEquals(..Call(n, "class")_"|"_..Call(n, "channel")_"|"_..Call(n, "reason"), "OcuTalon.Channel.Refused|"_channel_"|not_user", what_": it is a Channel.Refused of channel "_channel_" with the reason not_user")
 	Do $$$AssertEquals(..Warnings(mark), 0, what_" logs no warning")
 }
 
-/// A fixture IRIS user that holds the roles (a comma list), and a session of it; the session's Ref, with user its name.
+/// A fixture session of a real IRIS account that holds the roles (a comma list; Fixture.ChatSession); the session's Ref, with user the account's name.
 Method Session(name As %String, roles As %String, Output user As %String) As %String [ Private ]
 {
-	Set user = ..#USER_..Number_name
-	Do $$$AssertStatusOK(##class(OcuTalon.Test.Install.RolesAssign).CreateUser(user, roles), "the fixture user "_user_" is made with "_roles)
-	Set ..Users = ..Users_$Select(..Users = "": "", 1: ",")_user
-	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session(user)
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).ChatSession(..#USER_..Number_name, roles, .user)
+	Do $$$AssertTrue(##class(OcuTalon.Test.Data.Fixture).AccountExists(user), "the fixture user "_user_" is made with "_roles)
 	Set ..Sessions = ..Sessions_$Select(..Sessions = "": "", 1: ",")_ref
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
 	Quit ref
@@ -226,14 +310,6 @@ Method Session(name As %String, roles As %String, Output user As %String) As %St
 Method RemoveRole(user As %String, role As %String) [ Private ]
 {
 	Do ##class(OcuTalon.Test.Install.RolesAssign).RemoveRole(user, role)
-}
-
-/// Deletes the IRIS account, when it exists.
-ClassMethod DropUser(user As %String)
-{
-	New $Namespace
-	Set $Namespace = "%SYS"
-	If ##class(Security.Users).Exists(user) Do ##class(Security.Users).Delete(user)
 }
 
 /// Forgets the calls recorded so far, so that the next Item's sends are counted alone.
@@ -261,6 +337,18 @@ Method Item(session As %String, channel As %String, text As %String) As OcuTalon
 	Set item.Provenance = "user"
 	Set item.Text = text
 	If channel '= "slack" Set item.ClientId = "zzc"_..Number_$Increment(^OcuTalonTest("ConversationNotUser", "c"))
+	Quit item
+}
+
+/// A telegram file Item of the session for the stored file (Core.Files.Describe gives its ref, name, media type and size): untrusted, with the four file fields.
+Method FileItem(session As %String, file As %String) As OcuTalon.Msg.Item [ Private ]
+{
+	Set item = ##class(OcuTalon.Msg.Item).%New()
+	Set item.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set item.SessionRef = session
+	Set item.Channel = "telegram"
+	Set item.Provenance = "untrusted"
+	Do ##class(OcuTalon.Core.Files).SetItem(item, ##class(OcuTalon.Core.Files).Describe(file, session))
 	Quit item
 }
 

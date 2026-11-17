@@ -4,9 +4,12 @@
 /// ^||OcuTalonEmailInAdapter("fail") is 1, or at its nth call since ^||OcuTalonEmailInAdapter("calls") was set to 0 when ^||OcuTalonEmailInAdapter("failAt") is n. Like
 /// Ens.BusinessService.ProcessInput, a hand-off clears the business host's %WaitForNextCallInterval when the adapter has a host. StopAsked answers 1 once
 /// ^||OcuTalonEmailInAdapter("stopAfter") emails have been handed on. SwitchOn stands in for the CI-only environment variable of the job: it answers 1 when
-/// ^||OcuTalonEmailInAdapter("plain") is 1. The product never refers to it.
+/// ^||OcuTalonEmailInAdapter("plain") is 1. With Service set to a service (Test.Channel.EmailInServiceProbe) Deliver hands the email to that service's OnProcessInput and answers its status, as the production does, so that a test sees what the adapter records seen. The product never refers to it.
 Class OcuTalon.Test.Channel.EmailInAdapter Extends OcuTalon.Channel.Email.Adapter
 {
+
+/// The service that Deliver hands the email to; empty to only record it.
+Property Service As %RegisteredObject [ Transient ];
 
 Method OnInit() As %Status
 {
@@ -37,6 +40,7 @@ Method StopAsked() As %Boolean [ Private ]
 
 Method Deliver(mail As OcuTalon.Channel.Email.Mail) As %Status [ Private ]
 {
+	If $IsObject(..Service) Quit ..Service.OnProcessInput(mail, .output)
 	If $IsObject(..BusinessHost) Set ..BusinessHost.%WaitForNextCallInterval = 0
 	If $Get(^||OcuTalonEmailInAdapter("fail")) || ($Get(^||OcuTalonEmailInAdapter("failAt")) && ($Increment(^||OcuTalonEmailInAdapter("calls")) = ^||OcuTalonEmailInAdapter("failAt"))) Quit $SYSTEM.Status.Error(5001, "SERVER-WORDS the service refused zzserver@example.com")
 	Set n = $Increment(^||OcuTalonEmailInAdapter("delivered"))

@@ -4,10 +4,12 @@
 ///   - Item: dropped, with a warning, when it is not user provenance or has no ItemId, no text or no Session row (NFR-14), and
 ///     dropped silently when its ItemId or its ClientId already has a turn of the session. Otherwise it is saved as a queued
 ///     Turn, chat.message is published, and the session's next turn starts;
-///   - an Item of channel slack (Story 27.3; AD-14) is taken only when its session's IRIS user may chat by web chat's rule (MayChat: the user's recursed role set read the way
-///     Bridge.Approval reads it, then Web.Public.Shell MayChat). A user who may not, whose roles cannot be read or whose session row names no user is refused: no Turn is saved, nothing is
-///     published, no request goes to Decide, no Outbound goes to Notify (no reply is sent), and one Channel.Slack.Ignored with the reason not_user goes to Intake, which holds no text, no
-///     member or team id and no user name. The check is the first step after the Item is found trusted; an Item of any other channel is never checked here;
+///   - an Item of channel slack or telegram (Stories 27.3 and 0.38; AD-14) is taken only when its session's IRIS user may chat now (Core.Access MayChat: web chat's role rule on the user's
+///     recursed role set, read the way Bridge.Approval reads it, and an account that is Enabled and not past its expiry). A user who may not, whose roles or account cannot be read or
+///     whose session row names no user is refused: no Turn is saved, nothing is published, no request goes to Decide, no Outbound goes to Notify (no reply is sent), and one
+///     Channel.Refused {Channel, Reason not_user} goes to Intake, which holds no text, no member or chat id and no user name. A refused Item that carries a file (FileRef) also has its stored
+///     file discarded at once (Core.Files.Discard), and the file is never read. The check is the first step after the Item is found trusted; an Item of any other channel is never
+///     checked here (an email is checked by EmailIn before an Item is made);
 ///   - an Item that carries a file (FileRef, Story 25.3; Core.Files) is the one exception to the user-provenance rule: it is taken only with provenance
 ///     untrusted, only when its FileRef is a file of the Item's own session (Core.Files.Describe), and it may have no text; every other drop stands.
 ///     The Turn keeps the file as SentFile, {ref, name, mediaType, size} from the stored row and never from the Item, which marks the turn untrusted:
@@ -162,14 +164,17 @@ Parameter DROPNOTEXT = "it has no text";
 
 Parameter DROPNOSESSION = "it has no session";
 
-/// The one channel whose Items are checked against the user's roles (MayChat): Telegram and email join it in a later story.
-Parameter CHECKEDCHANNEL = "slack";
+/// The channels whose Items are checked against the user's roles and account (Core.Access MayChat), as a comma-separated list.
+Parameter CHECKEDCHANNEL = "slack,telegram";
 
 /// The item that records a refused Item.
 Parameter INTAKE = "Intake";
 
 /// The warning when the not_user record could not be sent; it names nothing of the Item.
 Parameter LOGNOTUSER = "Conversation could not record an item whose user may not chat.";
+
+/// The warning when the stored file of a refused Item could not be discarded; it names nothing of the Item.
+Parameter LOGNOTUSERFILE = "Conversation could not discard the file of an item whose user may not chat.";
 
 Parameter DROPFILEPROVENANCE = "its file is not marked untrusted";
 
@@ -232,7 +237,7 @@ Method Take(item As OcuTalon.Msg.Item) As %Status [ Private ]
 		$$$LOGWARNING(..#LOGDROPPED_refusal)
 		Quit $$$OK
 	}
-	If ..NotUser(item) Quit ..RecordNotUser()
+	If ..NotUser(item) Quit ..RecordNotUser(item)
 	If $IsObject(##class(OcuTalon.Data.Turn).ItemIdIndexOpen(item.ItemId)) Quit $$$OK
 	Set found = ##class(OcuTalon.Data.Ownership).TurnByClient(item.SessionRef, item.ClientId, .sc)
 	If $$$ISERR(sc) Quit sc
@@ -263,11 +268,11 @@ Method Take(item As OcuTalon.Msg.Item) As %Status [ Private ]
 	Quit ..Start(item.SessionRef)
 }
 
-/// 1 when the Item is of the checked channel (CHECKEDCHANNEL) and its session's IRIS user may not chat: the session row names no user, or MayChat answers 0 (which includes a role
-/// set that cannot be read). An Item of another channel is never refused here. Nothing is written.
+/// 1 when the Item is of a checked channel (CHECKEDCHANNEL) and its session's IRIS user may not chat: the session row names no user, or MayChat answers 0 (which includes a role set or an
+/// account that cannot be read). An Item of another channel is never refused here. Nothing is written.
 Method NotUser(item As OcuTalon.Msg.Item) As %Boolean [ Private ]
 {
-	If item.Channel '= ..#CHECKEDCHANNEL Quit 0
+	If '$ListFind($ListFromString(..#CHECKEDCHANNEL), item.Channel) Quit 0
 	Set refused = 1
 	Try {
 		Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(item.SessionRef)
@@ -278,25 +283,32 @@ Method NotUser(item As OcuTalon.Msg.Item) As %Boolean [ Private ]
 	Quit refused
 }
 
-/// The one record of a refused Item: a Channel.Slack.Ignored (kind message.im, reason not_user, no event id) sent to Intake, which drops it silently. A failed send is one warning
-/// that names nothing of the Item, and the Item is still not taken.
-Method RecordNotUser() As %Status [ Private ]
+/// The one record of a refused Item: a Channel.Refused {the Item's channel, not_user} sent to Intake, which drops it silently. When the Item carries a file, the stored file is discarded first
+/// (Core.Files.Discard; it is never read), and a failed discard is one fixed warning. A failed send is one warning that names nothing of the Item, and the Item is still not taken.
+Method RecordNotUser(item As OcuTalon.Msg.Item) As %Status [ Private ]
 {
-	Set ignored = ##class(OcuTalon.Channel.Slack.Ignored).%New()
-	Set ignored.Kind = "message.im"
-	Set ignored.Reason = "not_user"
-	Set sc = ..Send(..#INTAKE, ignored, 0, "")
+	If item.FileRef '= "" {
+		Set sc = $$$OK
+		Try {
+			Set sc = ##class(OcuTalon.Core.Files).Discard(item.FileRef, item.SessionRef)
+		} Catch exception {
+			Set sc = exception.AsStatus()
+		}
+		If $$$ISERR(sc) $$$LOGWARNING(..#LOGNOTUSERFILE)
+	}
+	Set refused = ##class(OcuTalon.Channel.Refused).%New()
+	Set refused.Channel = item.Channel
+	Set refused.Reason = "not_user"
+	Set sc = ..Send(..#INTAKE, refused, 0, "")
 	If $$$ISERR(sc) $$$LOGWARNING(..#LOGNOTUSER)
 	Quit $$$OK
 }
 
-/// 1 when the IRIS user may chat by web chat's rule (Web.Public.Shell MayChat) on their recursed role set, read by Bridge.Approval RolesOf, the one read of another user's roles. An empty or
-/// unknown user and a role set that cannot be read answer 0. A channel that has no web session calls it with the session's IRIS user; it needs the production job's
-/// privilege to read another user's roles (%Admin_Secure:USE), which the hook application's role does not have.
-ClassMethod MayChat(irisUser As %String) As %Boolean
+/// 1 when the IRIS user may chat now (Core.Access MayChat). This private method is the one call of the Item's check and the seam a test subclass overrides; it is never
+/// called from outside. An empty or unknown user and a role set or account that cannot be read answer 0.
+ClassMethod MayChat(irisUser As %String) As %Boolean [ Private ]
 {
-	If '##class(OcuTalon.Bridge.Approval).RolesOf($Get(irisUser), .roles) Quit 0
-	Quit ##class(OcuTalon.Web.Public.Shell).MayChat(roles)
+	Quit ##class(OcuTalon.Core.Access).MayChat($Get(irisUser))
 }
 
 /// Keeps the position of the turn's Item header in the trace on the turn (both indexes). A failed read is logged as one warning

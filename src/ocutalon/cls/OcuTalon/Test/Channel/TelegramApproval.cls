@@ -116,13 +116,21 @@ Method Tidy() [ Private ]
 /// removed by Tidy.
 Method WebSession(user As %String = "") As %String [ Private ]
 {
-	If user = "" Set user = $Username
 	Set ref = ..NewSession("zztgappr")
+	Do ..Reown(ref, $Select(user = "": $Username, 1: user))
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
+	Quit ref
+}
+
+/// Makes the fixture session belong to the IRIS user. A session made by NewSession belongs to a fixture account that holds OcuTalonUser, so that /start can pair it (Pair refuses a session whose user
+/// may not chat, as this process's user may not); the approval tests then give it the user whose role the requests name.
+Method Reown(ref As %String, user As %String) As %Status [ Private ]
+{
 	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
 	Set row.IrisUser = user
-	Do $$$AssertStatusOK(row.%Save(), "the fixture session belongs to "_user)
-	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_##class(OcuTalon.Test.Data.Fixture).Adopt(row)
-	Quit ref
+	Set sc = row.%Save()
+	Do $$$AssertStatusOK(sc, "the fixture session belongs to "_user)
+	Quit sc
 }
 
 /// A role that this process's user holds.
@@ -182,8 +190,11 @@ Method Request(owner As %String, fields As %DynamicObject = "") As %String [ Pri
 /// (this process's user when none is given).
 Method Paired(chatId As %String, name As %String, Output chatRef As %String, user As %String = "") As %String [ Private ]
 {
-	Set session = ..WebSession(user)
+	Set session = ..NewSession("zztgappr")
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_session
+	If user '= "" Do ..Reown(session, user)
 	Do $$$AssertTrue(..PairChat(chatId, name, session), "chat "_chatId_" is paired with its session")
+	If user = "" Do ..Reown(session, $Username)
 	Do ..ChatRow(chatId, .chatRef)
 	Do $$$AssertEquals(..TextsAfter(chatId, 1).%Size(), 1, "the chat got its confirmation")
 	Quit session

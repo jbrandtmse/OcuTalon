@@ -5,8 +5,9 @@ Include Ensemble
 /// the pairing live event. It compares hashes only: a pairing code never reaches it (AD-4). Its answer is always a CommandResult; the
 /// Telegram service that sent the command writes the reply from the outcome.
 ///   - Pair {CodeHash, ChatRef}, origin telegram only. In order it finds the chat row, then the code row of the hash, then the session
-///     row of the code. The outcomes are paired, unknown_chat, unknown_code (also a code whose session is gone), used_code, expired_code
-///     and failed. A used code repeated by the chat that is already on its session is paired and changes nothing. A chat that pairs
+///     row of the code. The outcomes are paired, unknown_chat, unknown_code (also a code whose session is gone), used_code, expired_code,
+///     not_user and failed; not_user is a session whose IRIS user may not chat now (Core.Access MayChat on the session row's IrisUser, never the user of this job), refused before anything
+///     is changed, with one rejected audit entry (reason not_user), no pairing event and the code left unused. A used code repeated by the chat that is already on its session is paired and changes nothing. A chat that pairs
 ///     with another session leaves its old session (reason moved, no notice), and a session that already has another chat drops that
 ///     chat (reason other_chat, with the notice pairing.otherChatPaired). Then the linked audit entry is written, and only after it the
 ///     chat row gets its SessionRef and the code row its used mark. The pairing event follows the save.
@@ -167,7 +168,10 @@ Method Pair(command As OcuTalon.Msg.Command.Pair) As OcuTalon.Msg.CommandResult 
 	}
 	Set expires = ##class(OcuTalon.Data.Time).Seconds(code.CodeExpiresAt)
 	If (expires = "") || (expires <= ##class(OcuTalon.Data.Time).Seconds(##class(OcuTalon.Data.Time).NowUtc())) Quit ..Reject("expired_code", "expired", session, channel)
-	If '$IsObject(##class(OcuTalon.Data.Session).RefIndexOpen(session)) Quit ..Reject("unknown_code", "unknown", "", channel)
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+	If '$IsObject(row) Quit ..Reject("unknown_code", "unknown", "", channel)
+	If '##class(OcuTalon.Core.Access).MayChat(row.IrisUser) Quit ..Reject("not_user", "not_user", session, channel)
+	Set row = ""
 	Set chatId = chat.%Id(), chatRef = chat.Ref, codeId = code.%Id(), oldSession = chat.SessionRef
 	Set (chat, code) = ""
 	If (oldSession '= "") && (oldSession '= session) {

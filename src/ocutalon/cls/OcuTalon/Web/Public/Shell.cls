@@ -144,7 +144,8 @@ ClassMethod Serve(path As %String) As %Status
 	Quit ##class(%CSP.StreamServer).OnPage()
 }
 
-/// 1 when the roles (the signed-in user's by default, a comma list) hold the OcuTalon user role or the viewer role, each by its whole name.
+/// 1 when the roles (the signed-in user's by default, a comma list) hold the OcuTalon user role or the viewer role, each by its whole name. With ViewerOnly it is web chat's gate
+/// (Web.Api OnPreDispatch); Core.Access RolesMayChat is the same rule for a channel that has no web session, and Test.Web.ViewerApi keeps the two equal.
 ClassMethod HasRole(roles As %String = {$Roles}) As %Boolean
 {
 	Quit ((","_roles_",") [ (","_..#ROLE_",")) || ((","_roles_",") [ (","_..#VIEWERROLE_","))
@@ -154,15 +155,6 @@ ClassMethod HasRole(roles As %String = {$Roles}) As %Boolean
 ClassMethod ViewerOnly(roles As %String = {$Roles}) As %Boolean
 {
 	Quit ((","_roles_",") [ (","_..#VIEWERROLE_",")) && '((","_roles_",") [ (","_..#ROLE_","))
-}
-
-/// 1 when the roles (the signed-in user's by default, a comma list) let the user chat, by web chat's own rule: they hold a role that opens the application (HasRole) and are not
-/// a viewer (ViewerOnly), so they hold the OcuTalon user role. A user with neither role is signed out at the page (norole) and refused by the API (403 no_role, 401 signed_out), a
-/// viewer's every message is 403 read_only, and OcuTalonAdmin adds nothing, so an admin with neither role cannot chat. Core.Conversation MayChat applies it to a user's recursed role
-/// set for a channel that has no web session (Slack now; Telegram and email later) and Core.SettingsOps applies the same call when a Slack member is linked.
-ClassMethod MayChat(roles As %String = {$Roles}) As %Boolean
-{
-	Quit ..HasRole(roles) && '..ViewerOnly(roles)
 }
 
 /// The path of the request below the application, "" for the application itself.

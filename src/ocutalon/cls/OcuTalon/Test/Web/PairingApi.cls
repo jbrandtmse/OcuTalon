@@ -147,12 +147,20 @@ Method TestCodeRoute()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).ForCode(first), "", "the first hash finds nothing")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).ForCode(##class(OcuTalon.Data.Pairing).HashCode(second.code)).CodeSessionRef, session, "the second hash is the session's")
 
+	// The test's own process user may not chat (it holds %All only), so Pair would refuse its session: the code that the route made is moved to the session of a real account that
+	// holds OcuTalonUser, and the Pair with its hash pairs the chat with that session.
+	Set other = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zzpairapi"_..Number_"chat")
+	Set ..Refs = ..Refs_","_other
+	Set moved = ##class(OcuTalon.Data.Pairing).ForCode(##class(OcuTalon.Data.Pairing).HashCode(second.code))
+	Set moved.CodeSessionRef = other
+	Do $$$AssertStatusOK(moved.%Save(), "the code row is moved to the session of an account that may chat")
+	Set moved = ""
 	Set command = ##class(OcuTalon.Msg.Command.Pair).%New()
 	Set command.CodeHash = ##class(OcuTalon.Data.Pairing).HashCode(second.code)
 	Set command.ChatRef = chat
 	Do $$$AssertStatusOK(##class(OcuTalon.Core.Commands).Submit(command, "telegram", .result), "a Pair with the hash is submitted")
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|paired", "and pairs the chat")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).Chat(chat).SessionRef, session, "the chat is on the session")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).Chat(chat).SessionRef, other, "the chat is on the session")
 }
 
 /// A state of off or rejected is 409 not_available with MESSAGETELEGRAMOFF, a pause in the future is 409 not_available with
@@ -193,7 +201,10 @@ Method TestPageUnpair()
 	Set command = ##class(OcuTalon.Msg.Command.Pair).%New()
 	Set command.CodeHash = hash
 	Set command.ChatRef = chat
+	// The process user may not chat, so Pair refuses its session: the session row belongs to an account that may chat while the pairing is made, and to the process user again for the page's Unpair.
+	Set account = ..Reown(session, "")
 	Do ##class(OcuTalon.Core.Commands).Submit(command, "telegram", .result)
+	Do ..Reown(session, $Username)
 	Do $$$AssertEquals(result.Outcome, "paired", "control: the chat is paired")
 	Set queued = +##class(Ens.Queue).GetCount("TelegramOut")
 	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
@@ -291,6 +302,19 @@ Method Session() As %String [ Private ]
 	Do ..Keep(ref)
 	Set ..Current = ref
 	Quit ref
+}
+
+/// Makes the session row belong to the IRIS user, or with an empty user to a fixture account that holds OcuTalonUser (made by Fixture.ChatSession and dropped with the rows); the user it now has.
+Method Reown(session As %String, user As %String) As %String [ Private ]
+{
+	If user = "" {
+		Set ref = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zzpairapi"_..Number_"acct", "OcuTalonUser", .user)
+		Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
+	}
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+	Set row.IrisUser = user
+	Do $$$AssertStatusOK(row.%Save(), "the session belongs to "_user)
+	Quit user
 }
 
 /// The session that the stand-in CSP session is bound to.

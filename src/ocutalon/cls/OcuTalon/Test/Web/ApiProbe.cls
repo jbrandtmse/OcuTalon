@@ -33,10 +33,12 @@ ClassMethod Post(input As %RegisteredObject, Output output As %String) As %Statu
 
 /// The roles of the signed-in user: the test's, when it set them.
 /// The submit of SaveChannels: an error status, as a production that does not take the command, when ^OcuTalonTest("ApiProbe", "submit") is "fail";
-/// otherwise the real one.
+/// otherwise the real one, with the command's SessionRef changed to ^OcuTalonTest("ApiProbe", "owner") when that is set (the session of an account that may chat,
+/// since the CSP session of the process's own user, which holds %All only, may not).
 ClassMethod SubmitChannels(command As OcuTalon.Msg.Command.SaveSettings, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
 {
 	If $Get(^OcuTalonTest("ApiProbe", "submit")) = "fail" Quit $SYSTEM.Status.Error(5001, "zz the production is not running")
+	If $Get(^OcuTalonTest("ApiProbe", "owner")) '= "" Set command.SessionRef = ^OcuTalonTest("ApiProbe", "owner")
 	Quit ##super(command, .result)
 }
 

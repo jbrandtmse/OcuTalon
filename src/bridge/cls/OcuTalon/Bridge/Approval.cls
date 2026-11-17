@@ -411,7 +411,7 @@ ClassMethod HoldsRole(irisUser As %String, role As %String) As %Boolean [ Privat
 	Quit ''$ListFind($ListFromString($ZConvert(roles, "L")), $ZConvert(role, "L"))
 }
 
-/// The one read of another user's roles (Core.Conversation MayChat and HoldsRole call it): 1 when the IRIS user's recursed role set was read, with roles the comma list that
+/// The one read of another user's roles (Core.Access MayChat and HoldsRole call it): 1 when the IRIS user's recursed role set was read, with roles the comma list that
 /// IRIS answers, as it names them. An empty user, an unknown user and an error (reading another user's set needs %Admin_Secure:USE, which production jobs have, and the hook
 /// application's role does not) answer 0 with roles empty. It never throws.
 ClassMethod RolesOf(irisUser As %String, Output roles As %String) As %Boolean

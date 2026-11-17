@@ -11,7 +11,7 @@
 ///   - TestViewerAndAdmin: with OcuTalonViewer and OcuTalonAdmin, POST /v1/settings/budgets is read_only, the settings reads (GET /v1/settings, the webhooks and the Roles
 ///     list, which submits a command) are 403 not_admin, and admin is false;
 ///   - TestHasRole: Shell.HasRole admits the viewer and the user and refuses OcuTalonTraceViewer alone, and ViewerOnly is true only for the viewer without the user role;
-///   - TestMayChatIsTheRuleOfWebChat: Shell.MayChat answers 1 for exactly the role sets whose POST /v1/messages passes OnPreDispatch (the user, with or without OcuTalonAdmin or the viewer role) and 0 for a viewer, an admin with neither role, %All and a lookalike;
+///   - TestMayChatIsTheRuleOfWebChat: Core.Access RolesMayChat (the one rule that every channel without a web session applies) answers 1 for exactly the role sets whose POST /v1/messages passes OnPreDispatch (the user, with or without OcuTalonAdmin or the viewer role) and 0 for a viewer, an admin with neither role, %All alone and a lookalike, each the same answer as the web check gives;
 ///   - TestStateFlags: /v1/state's viewer, admin and rolesAssignable for each role set, with the flag of the roles' existence on and off;
 ///   - TestDemoAccount: the demo account's roles with the online demo forced give admin, viewer and rolesAssignable false, and the Roles routes 403 not_admin;
 ///   - TestLiveRolesRefusal: a user whose live roles hold neither role gets 401 signed_out and the CSP session ends, and one whose live read fails gets 500 server_error
@@ -165,7 +165,7 @@ Method TestHasRole()
 	Do $$$AssertEquals($ClassMethod(shell, "ViewerOnly", "OcuTalonTraceViewer"), 0, "and for the trace viewer")
 }
 
-/// Shell.MayChat is the rule that Api applies to a message: for each role set it answers 1 exactly when POST /v1/messages passes OnPreDispatch (the dispatch goes on), and 0 when
+/// Core.Access RolesMayChat is the rule that Api applies to a message: for each role set it answers 1 exactly when POST /v1/messages passes OnPreDispatch (the dispatch goes on), and 0 when
 /// it is stopped as no_role (neither role), signed_out (neither live role) or read_only (a viewer), whether or not the user also holds OcuTalonAdmin.
 Method TestMayChatIsTheRuleOfWebChat()
 {
@@ -176,7 +176,7 @@ Method TestMayChatIsTheRuleOfWebChat()
 		Set expected = $Piece(case, "|", 2)
 		Set ^OcuTalonTest("ApiProbe", "roles") = roles
 		Set written = ..PreDispatch("/v1/messages", "POST", .continue)
-		Do $$$AssertEquals(##class(OcuTalon.Web.Public.Shell).MayChat(roles), expected, "MayChat for '"_roles_"'")
+		Do $$$AssertEquals(##class(OcuTalon.Core.Access).RolesMayChat(roles), expected, "RolesMayChat for '"_roles_"'")
 		Do $$$AssertEquals(continue, expected, "POST /v1/messages for '"_roles_"' is "_$Select(expected: "not stopped", 1: "stopped")_" by OnPreDispatch")
 	}
 }

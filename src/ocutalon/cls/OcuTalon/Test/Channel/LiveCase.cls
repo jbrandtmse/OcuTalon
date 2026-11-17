@@ -11,7 +11,8 @@ Include Ensemble
 ///     Enabled snapshotted before and put back after; the job of each item is waited for. StartItems refuses an item whose ApiBase row
 ///     could reach the public Bot API.
 ///   - SaveMarks and RestoreMarks keep the marks telegramState and telegramPaused, DropChats deletes the Pairing rows of fixture chat ids,
-///     FixtureSession and DropSessions make and remove the zztg... sessions that StateBody needs, and Cleanup does all the endings, so
+///     FixtureSession and DropSessions make and remove the zztg... sessions that StateBody needs (each of a real IRIS account that holds OcuTalonUser, made by Test.Data.Fixture ChatSession and
+///     dropped with the session by DropSessions, since a pairing or a turn of a session whose user may not chat is refused), and Cleanup does all the endings, so
 ///     that every test ends with the one call on every path. DropSessions is a public class method (Story 12.5): the second user of it is
 ///     OcuTalon.Test.Channel.TelegramPageFixture.Finish, which removes the fixture sessions that the page test's Move made.
 ///   - The wait helpers poll for the offset, the Telegram state, a mark and the mock's calls.
@@ -425,26 +426,31 @@ ClassMethod LiveMark() As %Integer
 	Quit +result.%GetData(1)
 }
 
-/// A fixture session of the prefix (zztg...) for StateBody; its events and counters are removed by DropSessions.
+/// A fixture session of the prefix (zztg...) for StateBody, of a real IRIS account that holds OcuTalonUser (Fixture.ChatSession, so that a pairing or a turn of the session is not refused as
+/// a person who may not chat); its events and counters are removed by DropSessions, and the account with it.
 Method FixtureSession(prefix As %String) As OcuTalon.Data.Session [ Private ]
 {
-	Set session = ##class(OcuTalon.Data.Session).ForUser(prefix_$Increment(^OcuTalonTest("TelegramLive", "n")), .sc)
-	Do $$$AssertStatusOK(sc, "the fixture session is made")
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).ChatSession(prefix_$Increment(^OcuTalonTest("TelegramLive", "n")), "OcuTalonUser")
+	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+	Do $$$AssertTrue($IsObject(session), "the fixture session is made")
 	Quit session
 }
 
-/// Deletes the fixture sessions (zztg...) with their events and counters, and the Turn, Delivery and SimMessage rows that name them.
+/// Deletes the fixture sessions (zztg...) with their events and counters, and the Turn, Delivery and SimMessage rows that name them, and the IRIS accounts that ChatSession made for them.
 ClassMethod DropSessions()
 {
+	Set refs = ""
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Data.Session WHERE IrisUser %STARTSWITH 'zztg'")
 	While result.%Next() {
 		Set stream = result.%Get("Ref")
+		Set refs = refs_$Select(refs = "": "", 1: ",")_stream
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Live.Event WHERE Stream = ?", stream)
 		Kill ^OcuTalonP.LiveEventC(stream)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Turn WHERE SessionRef = ?", stream)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Delivery WHERE OwnerRef = ?", stream)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.SimMessage WHERE SessionRef = ?", stream)
 	}
+	If refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(refs)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Session WHERE IrisUser %STARTSWITH 'zztg'")
 }
 

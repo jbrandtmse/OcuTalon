@@ -9,8 +9,8 @@
 ///   - TestLinkReasons: a malformed member (bad_member), a user with no session (user_unknown), no noted workspace (no_workspace), a member linked to another user (member_taken) and a user
 ///     with another member (user_taken) are refused with their reason and field, with no audit entry and no new row;
 ///   - TestLinkRefusesUsersWhoMayNotChat, TestListOffersOnlyUsersWhoMayChat (Contest Planner ruling (a)): a user with a session who may not chat by web chat's rule (a viewer, a user with OcuTalonAdmin and neither chat role,
-///     a viewer who is also an admin, an account that does not exist) is refused user_unknown with no audit entry and no row, an admin who also holds OcuTalonUser is linked, and the
-///     users that the list offers are only those who may chat, read from their live roles;
+///     a viewer who is also an admin, an account that does not exist, one that is disabled, one that is past its expiry) is refused user_unknown with no audit entry and no row, an admin who also holds OcuTalonUser is linked, and the
+///     users that the list offers are only those who may chat, read from their live roles and account state;
 ///   - TestFailedAfterAudit: a link that loses its member or its user to another link after its audit entry is refused with the reason, writes the reversing entry (from the user to
 ///     "") and makes no row of its own;
 ///   - TestLinkGuards: an admin session with no row (no_session) and a handoff that is gone, not JSON or not {user, member} (failed) change nothing and write no audit entry;
@@ -94,7 +94,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Set ..Refs = ""
 	For i = 1:1:$Length(..Users, ",") {
-		If $Piece(..Users, ",", i) '= "" Do ##class(OcuTalon.Test.Core.ConversationNotUser).DropUser($Piece(..Users, ",", i))
+		If $Piece(..Users, ",", i) '= "" Do ##class(OcuTalon.Test.Data.Fixture).DropAccount($Piece(..Users, ",", i))
 	}
 	Set ..Users = ""
 	Quit $$$OK
@@ -234,6 +234,12 @@ Method TestLinkRefusesUsersWhoMayNotChat()
 	Do ..AssertRefused(..Link("zzslkadminonly", ..#MEMBER), "user_unknown", "user", "a user with OcuTalonAdmin and neither chat role, as web chat refuses that user")
 	Do ..AssertRefused(..Link("zzslkadminviewer", ..#MEMBER), "user_unknown", "user", "a viewer who also holds OcuTalonAdmin")
 	Do ..AssertRefused(..Link("zzslknoaccount", ..#MEMBER), "user_unknown", "user", "a session whose IRIS user has no account (its roles cannot be read)")
+	Do ..Session("zzslkdisabled", "OcuTalonUser")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Data.Fixture).SetAccount("zzslkdisabled", 0, ""), "the account zzslkdisabled is disabled")
+	Do ..Session("zzslkexpired", "OcuTalonUser")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Data.Fixture).SetAccount("zzslkexpired", 1, -2), "the account zzslkexpired expired two days ago")
+	Do ..AssertRefused(..Link("zzslkdisabled", ..#MEMBER), "user_unknown", "user", "a user who holds OcuTalonUser but whose account is disabled")
+	Do ..AssertRefused(..Link("zzslkexpired", ..#MEMBER), "user_unknown", "user", "a user who holds OcuTalonUser but whose account is past its expiry")
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("SettingsOpsProbe", "calls")), 0, "no refusal wrote an audit entry")
 	Do $$$AssertEquals(..RowCount(), 0, "and none made a row")
 	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Workspace(), ..#TEAM, "the workspace is untouched")
@@ -254,6 +260,15 @@ Method TestListOffersOnlyUsersWhoMayChat()
 	While iterator.%GetNext(, .name) { Set users = users_","_name }
 	Do $$$AssertTrue((users [ (","_..#USERONE)) && (users [ ",zzslkadminuser"), "the users offered include the user and the admin who holds the user role")
 	Do $$$AssertTrue((users '[ ",zzslkviewer") && (users '[ ",zzslkadminonly"), "and neither the viewer-only user nor the admin-only user")
+	Do ..Session("zzslkdisabled", "OcuTalonUser")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Data.Fixture).SetAccount("zzslkdisabled", 0, ""), "the account zzslkdisabled is disabled")
+	Do ..Session("zzslkexpired", "OcuTalonUser")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Data.Fixture).SetAccount("zzslkexpired", 1, -2), "the account zzslkexpired expired two days ago")
+	Set body = ..ListBody()
+	Set users = ""
+	Set iterator = body.users.%GetIterator()
+	While iterator.%GetNext(, .name) { Set users = users_","_name }
+	Do $$$AssertTrue((users '[ ",zzslkdisabled") && (users '[ ",zzslkexpired") && (users [ (","_..#USERONE)), "and neither a disabled account nor an expired one, with the user still offered")
 	Do ##class(OcuTalon.Test.Install.RolesAssign).RemoveRole(..#USERONE, "OcuTalonUser")
 	Set body = ..ListBody()
 	Set users = ""

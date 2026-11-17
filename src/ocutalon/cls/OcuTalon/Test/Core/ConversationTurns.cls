@@ -1390,7 +1390,7 @@ Method TestSourceKeepsToItsBoundaries()
 /// never a duplicate.
 Method TestTurnKeepsItsChannel()
 {
-	Set session = ..Session("channel")
+	Set session = ..Session("channel", 1)
 	Set first = ..Item(session, "zz from telegram one", "")
 	Set first.Channel = "telegram"
 	Set second = ..Item(session, "zz from telegram two", "")
@@ -1973,12 +1973,12 @@ Method Finish(name As %String, answer As %String, render As %List = "", throwIn 
 	Quit ##class(OcuTalon.Data.Ownership).TurnByClient(session, "zzc"_..Number_name)
 }
 
-/// A fixture session; its Ref is kept for the clean-up and the double's scripts are cleared.
-Method Session(name As %String) As %String [ Private ]
+/// A fixture session (with chat 1, one of a real account that holds OcuTalonUser, as a telegram Item's session must be); its Ref is kept for the clean-up and the double's scripts are cleared.
+Method Session(name As %String, chat As %Boolean = 0) As %String [ Private ]
 {
 	Kill ^OcuTalonTest("ConversationProbe", ..Number)
 	Set ..Handled = 0
-	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzconv"_..Number_name)
+	Set ref = $Select(chat: ##class(OcuTalon.Test.Data.Fixture).ChatSession("zzconv"_..Number_name), 1: ##class(OcuTalon.Test.Data.Fixture).Session("zzconv"_..Number_name))
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
 	Set ..Sessions = ..Sessions_$Select(..Sessions = "": "", 1: ",")_ref
 	Do ##class(OcuTalon.Test.Core.DecideDouble).Clear(ref)

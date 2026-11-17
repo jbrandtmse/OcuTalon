@@ -10,8 +10,8 @@
 ///   - TestAlreadyAnsweredAndExpired: a second press is already_answered with the winner {action, channel telegram, time}, and a request
 ///     past its expiry is expired with {time};
 ///   - TestNotAllowedWithoutTheRole: a session whose user lacks the role gets not_allowed {kind} (the kind that the role check names, "" until Story 26.4) and the row stays pending;
-///   - TestAnswerFollowsThePairingSessionOpsWrites: the row that SessionOps writes is the row that FromTelegram reads: a chat paired by a
-///     Pair through the production has its press approved; a second chat that takes the session leaves the first chat not_paired with the
+///   - TestAnswerFollowsThePairingSessionOpsWrites: the row that SessionOps writes is the row that FromTelegram reads (the session is of a real account that holds OcuTalonUser, the role of its
+///     requests, since Pair refuses a session whose user may not chat): a chat paired by a Pair through the production has its press approved; a second chat that takes the session leaves the first chat not_paired with the
 ///     request pending; after /stop the second chat is not_paired too;
 ///   - TestUnpairedAndBadChatsLeaveTheRowPending (DW-200): an unpaired chat is not_paired, and a chat whose row holds a chat id as its
 ///     SessionRef is not_allowed; both leave the request pending and write no audit entry. AnswersInProduction.TestMalformedSessionRefIsNotAllowed
@@ -126,12 +126,12 @@ Method TestAnswerFollowsThePairingSessionOpsWrites()
 	Set had = $Data(^OcuTalonTest("TelegramIncluded"), was)
 	Set ^OcuTalonTest("TelegramIncluded") = 0
 	Try {
-		Set session = ..WebSession("a")
+		Set session = ..ChatSession("pair")
 		Set one = ..NewChat("Dana")
 		Set two = ..NewChat("Sam")
-		Set first = ..Request(session)
-		Set second = ..Request(session)
-		Set third = ..Request(session)
+		Set first = ..Request(session, "pending", {"RequiredRole": "OcuTalonUser"})
+		Set second = ..Request(session, "pending", {"RequiredRole": "OcuTalonUser"})
+		Set third = ..Request(session, "pending", {"RequiredRole": "OcuTalonUser"})
 		Do ..Code(session, .h1)
 		Do $$$AssertEquals(..Submit("Pair", "", h1, one).Outcome, "paired", "control: the first chat pairs through the production")
 		Do ##class(OcuTalon.Core.AnswersIn).FromTelegram(first, "approve", one, .code, .slots)
@@ -160,7 +160,7 @@ Method TestAnswerFollowsThePairingSessionOpsWrites()
 }
 
 /// --- helpers ---
-/// A fixture session of this process's user.
+/// A fixture session of this process's user (which may not chat, so it is paired by a fixture link and never through Pair).
 Method WebSession(name As %String) As %String [ Private ]
 {
 	Set ref = ..Session(name)

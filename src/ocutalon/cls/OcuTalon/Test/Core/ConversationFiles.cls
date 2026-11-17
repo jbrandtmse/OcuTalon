@@ -466,12 +466,12 @@ Method StoreStream(session As %String, channel As %String, name As %String, byte
 	Quit file
 }
 
-/// A fixture session; its Ref is kept for the clean-up and the double's scripts are cleared.
+/// A fixture session of a real account that holds OcuTalonUser (a telegram Item's session is checked); its Ref is kept for the clean-up and the double's scripts are cleared.
 Method Session(name As %String) As %String [ Private ]
 {
 	Kill ^OcuTalonTest("ConversationProbe", ..Number)
 	Set ..Handled = 0
-	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzconvfiles"_..Number_name)
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zzconvfiles"_..Number_name)
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
 	Set ..Sessions = ..Sessions_$Select(..Sessions = "": "", 1: ",")_ref
 	Do ##class(OcuTalon.Test.Core.DecideDouble).Clear(ref)

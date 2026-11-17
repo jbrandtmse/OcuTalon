@@ -17,7 +17,8 @@ Include Ensemble
 ///         after a send; FailSend makes it answer an error, and ThrowSend makes it throw;
 ///       - Notify (target Notify) records the Notification's sessionRef, kind, catalogKey and chatRef and the service's %SessionId and
 ///         %SuperSession; FailNotify makes it answer an error;
-///       - Refund (target refund) records the sessionRef; ThrowRefund makes it throw after the record.
+///       - Refund (target refund) records the sessionRef; ThrowRefund makes it throw after the record;
+///       - SendRefused (target Intake, Story 0.38) records the Channel.Refused's class, channel and reason and the service's %SessionId and %SuperSession; FailRefused makes it answer an error; with RealRefused 1 the product's own SendRefused runs and the probe's SendRequestAsync records the target and the Channel.Refused that it was given.
 Class OcuTalon.Test.Channel.TelegramInProbe Extends OcuTalon.Channel.Telegram.In
 {
 
@@ -50,6 +51,12 @@ Property ThrowSend As %Boolean [ InitialExpression = 0, Transient ];
 
 /// 1 when Refund throws after it records the call.
 Property ThrowRefund As %Boolean [ InitialExpression = 0, Transient ];
+
+/// 1 when SendRefused answers an error status after it records the call.
+Property FailRefused As %Boolean [ InitialExpression = 0, Transient ];
+
+/// 1 when SendRefused is the product's own, whose send the probe's SendRequestAsync records.
+Property RealRefused As %Boolean [ InitialExpression = 0, Transient ];
 
 /// A paired chat's text as the session's turn.
 Method Run(sessionRef As %String, text As %String)
@@ -117,6 +124,32 @@ Method Notify(notification As OcuTalon.Msg.Notification) As %Status [ Private ]
 	Set @call@("sessionId") = ..%SessionId
 	Set @call@("superSession") = ..%SuperSession
 	If ..FailNotify Quit $SYSTEM.Status.Error(5001, "zz notify failed")
+	Quit $SYSTEM.Status.OK()
+}
+
+/// With RealRefused 1 the product's own SendRefused runs and SendRequestAsync records what it was given; otherwise the record is taken here.
+Method SendRefused(record As OcuTalon.Channel.Refused) As %Status [ Private ]
+{
+	If ..RealRefused Quit ##super(record)
+	Set call = ..Note(..#INTAKE)
+	Set @call@("class") = $ClassName(record)
+	Set @call@("channel") = record.Channel
+	Set @call@("reason") = record.Reason
+	Set @call@("sessionId") = ..%SessionId
+	Set @call@("superSession") = ..%SuperSession
+	If ..FailRefused Quit $SYSTEM.Status.Error(5001, "zz refused send failed")
+	Quit $SYSTEM.Status.OK()
+}
+
+/// The service's own send, taken by the probe: it records the target and the class of the request that it was given and sends nothing (the one caller is the product's SendRefused).
+Method SendRequestAsync(target As %String, request As %Library.Persistent, description As %String = "") As %Status
+{
+	Set call = ..Note($Get(target))
+	Set @call@("class") = $ClassName(request)
+	Set @call@("channel") = request.Channel
+	Set @call@("reason") = request.Reason
+	Set @call@("sessionId") = ..%SessionId
+	Set @call@("superSession") = ..%SuperSession
 	Quit $SYSTEM.Status.OK()
 }
 
