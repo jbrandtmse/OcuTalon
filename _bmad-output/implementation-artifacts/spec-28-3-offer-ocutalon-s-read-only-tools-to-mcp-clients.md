@@ -2,11 +2,11 @@
 title: "Story 28.3: Offer OcuTalon's read-only tools to MCP clients"
 type: 'feature'
 created: '2026-11-16'
-status: 'in-progress'
-baseline_revision: '088dbf0c4d59a4dec6d1a898e34b309e19646a9b'
+status: 'done'
+baseline_revision: '97afccbd1f904a223431ae616639679c94973ca3'
 baseline_commit: '088dbf0c4d59a4dec6d1a898e34b309e19646a9b'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-28-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/evidence/28-3-task0-mcp-service.md'
@@ -109,10 +109,10 @@ deferred:
 
 
 **Rework iteration 1 (2026-11-17, trigger fix_pack: Contest Planner text and overview rulings, `prompts/story-283-rulings-20261116.md` last section; work ONLY these items):**
-- [ ] [Review] `src/ocutalon/cls/OcuTalon/Install/Step/Mcp.cls:122` warning text becomes, verbatim: "The Mcp area could not read the MCP servers, so it declares no MCP server grant: " (followed by the status text, as now). Update any test that pins the old text.
-- [ ] [Review] `docs/security-overview.md:177` (and its source, if the sentence is generated or pinned anywhere, e.g. `Install.SecurityOverview` or a docs test): the sentence becomes, verbatim: "Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, call an MCP tool, serve a call of OcuTalon's own MCP server, or classify an MCP tool, so a release without those features writes none of them." (only the words "serve a call of OcuTalon's own MCP server," are new).
-- [ ] [Review] DW-1461 (APPROVED): the generated security overview adds the Application roles row "| `/mcp/ocutalon` | password | `OcuTalonMCPApp` |" and the Roles rows for `OcuTalonMCPApp`'s three read grants (`%DB_OCUTALON_CODE`, `%DB_OCUTALON_DATA`, `%DB_OCUTALON_PRIVATE`, R), generated the same way as `OcuTalonWebhook`'s rows (extend that mechanism; do not hand-write the rows); the committed `docs/security-overview.md` equals the generation; `Test.Install.SecurityOverview` (and `live:security-overview`) pin it.
-- [ ] [Review] SECURITY INVARIANT S-28.3-4 (Planner ruling, binding): the Mcp step closes `OcuTalon_MCPServer`'s PUBLIC permission on every start (a public permission would let any signed-in user pass the resource check and receive the private-database application role). Pin it: a test that sets a public permission (e.g. `RW` or `U`) on the resource, runs the Mcp step (off-demo), and asserts the public permission is empty afterwards; demonstrate its mutation (drop the closing call → red) and write the `mutation:` line.
+- [x] [Review] `src/ocutalon/cls/OcuTalon/Install/Step/Mcp.cls:122` warning text becomes, verbatim: "The Mcp area could not read the MCP servers, so it declares no MCP server grant: " (followed by the status text, as now). Update any test that pins the old text.
+- [x] [Review] `docs/security-overview.md:177` (and its source, if the sentence is generated or pinned anywhere, e.g. `Install.SecurityOverview` or a docs test): the sentence becomes, verbatim: "Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, call an MCP tool, serve a call of OcuTalon's own MCP server, or classify an MCP tool, so a release without those features writes none of them." (only the words "serve a call of OcuTalon's own MCP server," are new).
+- [x] [Review] DW-1461 (APPROVED): the generated security overview adds the Application roles row "| `/mcp/ocutalon` | password | `OcuTalonMCPApp` |" and the Roles rows for `OcuTalonMCPApp`'s three read grants (`%DB_OCUTALON_CODE`, `%DB_OCUTALON_DATA`, `%DB_OCUTALON_PRIVATE`, R), generated the same way as `OcuTalonWebhook`'s rows (extend that mechanism; do not hand-write the rows); the committed `docs/security-overview.md` equals the generation; `Test.Install.SecurityOverview` (and `live:security-overview`) pin it.
+- [x] [Review] SECURITY INVARIANT S-28.3-4 (Planner ruling, binding): the Mcp step closes `OcuTalon_MCPServer`'s PUBLIC permission on every start (a public permission would let any signed-in user pass the resource check and receive the private-database application role). Pin it: a test that sets a public permission (e.g. `RW` or `U`) on the resource, runs the Mcp step (off-demo), and asserts the public permission is empty afterwards; demonstrate its mutation (drop the closing call → red) and write the `mutation:` line.
 - Keep everything else byte-identical. No other text changes. Lane-C throwaways only (tags `e28s3r`/`e28s3rw`).
 
 **Acceptance Criteria:**
@@ -199,6 +199,26 @@ Rejected:
   - `[low]` `[reject]` Verification gap: `Auto Run Result` still read ready-for-dev - written at finalize.
   - `[low]` `[reject]` Verification gap: the spec body still holds superseded wording - the fix is to edit the spec; the Design Notes name the supersession.
   - `[low]` `[reject]` Verification gap: `AssertAudit` matches the caller by a text marker - the match is on the entry's own `irisUser` member and the assertions then read that member.
+
+### 2026-11-17 - Review pass (rework iteration 1)
+- verdicts: 16 findings - high 0, medium 1, low 13, false 2, maybe-false 0; the intent-alignment layer is descriptive and filed no finding (it reports that the diff implements the installed-artifact and documentation surfaces, with the served-call behaviour left to earlier passes)
+- findings:
+  - `[medium]` `patch` (blind 1) `AppRoleGrants`' online-demo guard is not pinned for the Roles rows - `ApplicationsFor` now also asserts the model lists `OcuTalonMCPApp` among its roles only off the online demo; mutation recorded above.
+  - `[low]` `reject` (blind 2) the new warning text is pinned by no test - static message text on a branch no test reaches; the verification-gap layer agrees it is not worth a test.
+  - `[low]` `patch` (blind 3) the `ApplicationsFor` doc comment still said only three applications add roles - comment replaced.
+  - `[low]` `patch` (blind 4) the `TestRoleRowsDeclaredBy` control checked one of the role's three resources - it now checks the three resources and the role-alone key.
+  - `[low]` `reject` (blind 5) `AppRoleGrants` copies the step's pair parsing instead of asking the step - the step makes the role itself, so no `Grants()` can declare it; the tests pin the current values.
+  - `[low]` `reject` (blind 6) the spec's `review_loop_iteration`, `baseline_commit` and dates - lead-owned bookkeeping, no harm.
+  - `[low]` `reject` (edge 1) regenerating the overview with `onlineDemo` 1 drops the MCP rows - intended: the objects do not exist there.
+  - `[low]` `reject` (edge 2) the role-level `declaredBy` of the application role is empty - the Roles table renders the grants' `declaredBy`, never the role-level one for a role with grants.
+  - `[false]` `reject` (edge 3) the `Areas` control cannot fail - `areas` is built from the registry's declared grants, so a declaring area makes it non-empty.
+  - `[low]` `reject` (edge 4) the new assertions rely on the ambient `onlineDemo` 0 and have no demo branch - the same dependency as the existing `OcuTalonMCPClient` row assertions; the demo branch is now in `ApplicationsFor`.
+  - `[low]` `reject` (edge 5) the rows are not generated "the same way" as the webhook's (a special case, not the registry) - same root cause as blind 5.
+  - `[false]` `reject` (edge 6) the first AC still says the client role holds the three database reads - an earlier pass amended the design (Task 0b result); not a defect of this diff.
+  - `[medium]` `patch` (verification-gap 1) the Roles half of the guard is not pinned - same root cause and fix as blind 1.
+  - `[low]` `patch` (verification-gap 2) the pairing and audit sentence pins had no recorded run or mutation line - `overviewdoc` run green, doc mutated, red observed, restored; line recorded above.
+  - `[low]` `reject` (verification-gap hermeticity) `TestMcpServerSection`, `TestRoleRowsDeclaredBy` and `TestPrivilegesMatchSecurityRecords` need `onlineDemo` 0 and the Mcp step run - same as edge 4.
+  - `[low]` `reject` (verification-gap sed) the `sed` control for the pairing sentence removes a little more than the new words - it still detects a changed sentence.
 
 ## Design Notes
 
@@ -310,6 +330,10 @@ Lane-C throwaways only (slot C busy). Fresh tag `e28s3i`, warm tag `e28s3iw`. Pr
 - AC 8 (chat unchanged): mutation: `Tools.RecentActivity.RecentActivity` calls `Activity` with the served tool's empty-list text -> `Test.Tools.RecentActivity` red (`TestNothing`).
 - (code review, 2026-11-17, lane-C warm `e28s3cw`) mutation: `Install.Step.Mcp.ApplyAppRole` without `Set properties("GrantedRoles") = ""` -> `Test.Mcp.ServiceInstall` red (`TestStepRewritesDrift`: "with no granted role"); file restored byte-identical.
 
+- (rework iteration 1, 2026-11-17, lane-C warm `e28s3rw`; each applied, red observed, file restored byte-identical) mutation: `Install.Step.Mcp.ApplyService` without its closing `ClosePublicPermission` call (`Quit sc`) -> `Test.Mcp.ServiceInstall` red (`TestClosesPublicPermission`: the public permission RW and U are not gone; `TestStepRewritesDrift`: "with no public permission"); mutation: `Install.SecurityOverview.RoleRows` without its `AppRoleGrants` call -> `Test.Install.SecurityOverview` red (`TestMcpServerSection`: the three `OcuTalonMCPApp` rows; `TestRoleRowsDeclaredBy`: the application role's three rows declared by Mcp); mutation: `Install.SecurityOverview.Applications` without the merge of the Mcp step's `ServiceApp` -> `Test.Install.SecurityOverview` red (`TestMcpServerSection`: the `/mcp/ocutalon` row; `TestDemoOnlyGrantsListed`: the applications read off the online demo; `TestPrivilegesMatchSecurityRecords`: `/mcp/ocutalon` adds exactly the roles listed for it).
+- (rework iteration 1, review patch, lane-C warm `e28s3rw`) mutation: `Install.SecurityOverview.AppRoleGrants` without its online-demo `Quit` (`If 0 Quit`) -> `Test.Install.SecurityOverview` red (`TestDemoOnlyGrantsListed`: the MCP application role is listed among the roles only off the online demo); file restored byte-identical.
+- (rework iteration 1) mutation: `docs/security-overview.md` without the words "serve a call of OcuTalon's own MCP server," -> `bash docker/tests/test-release-sequence.sh overviewdoc` red ("the Approval and audit section lacks the Pairing, MCP and Tool sentence word for word"); file restored byte-identical. The warning text of `Install.Step.Mcp` is static message text that no test reaches and is not pinned.
+
 **QA stage (2026-11-16, lane-C fresh tag `e28s3q`):**
 - (QA) `docker/tests/test-online-demo.sh`: new row 11 (Story 28.3, DW-1460) after the OcuTalonWebhook role check: on the online-demo install `/mcp/ocutalon`, `OcuTalon_MCPServer`, `OcuTalonMCPApp` and `OcuTalonMCPClient` do not exist (read from the security tables). `ci/iris.sh live online-demo` on a fresh throwaway: the row PASSES; the unit as a whole ends red locally only because of its own 540 s local deadline (it runs about 740 s; the browser and later rows report "only N s are left of the deadline"), which is CI's 1200 s group budget (`browser`) territory, not the row.
 - mutation: `Install.Step.Mcp.Run` ignores the online-demo flag (`If 0 Quit ..RemoveService()`) -> `test-online-demo.sh` row 11 (Story 28.3) red (application, resource and `OcuTalonMCPApp` present); run with a temporary `exit` after the row, then both files restored byte-identical (git diff shows only the row).
@@ -329,3 +353,12 @@ Blocking condition: none
 - Follow-up review recommended: true (4 medium entries patched). Unverified risk: the patched `ServiceRead` Try blocks, the `Lookup` seam and the `DependsOn` change were verified by their tests and mutations but not re-read by an independent layer.
 - Verification: new classes `Test.Mcp.ServiceReadOnly`, `ServiceTools`, `ServiceRoles`, `ServiceInstall`, `ServiceHttp` pass (fresh: `ServiceInstall` and `ServiceHttp`; warm: the others); `Test.Bridge.Audit`, `Test.Install.Registry`, `Test.Install.SecurityOverview`, `Test.Tools.RecentActivity` pass; `live security-overview` PASS; `test-cpf`, `test-class-rules`, `test-ci-config` exit 0. Not run here: `live:install-start`, `live:install-upgrade` and the rest of the suite (CI's), the reverse-order run.
 - Residual risks: a call through `iris-mcp-server` getting the same `$Roles` is an INFERENCE until Story 28.5; `OnAuthenticate` is not reached on the direct web path.
+
+### Rework iteration 1 (2026-11-17)
+
+Status: done
+Blocking condition: none
+
+- Items done: the Mcp warning text (verbatim); the audit and pairing sentences of `docs/security-overview.md` with their pins in `docker/tests/test-release-sequence.sh`; the generated Application roles row for `/mcp/ocutalon` and the three Roles rows of `OcuTalonMCPApp` (`Install.SecurityOverview` `AppRoleGrants` and `Applications`, regenerated document); `Test.Mcp.ServiceInstall.TestClosesPublicPermission` (S-28.3-4). Review patches: 1 medium root cause (the Roles half of the online-demo guard, two rows) and 3 low (a stale comment, a narrow control, the recorded mutation); 10 rows rejected with reasons in the triage log.
+- Follow-up review recommended: false (no high patched).
+- Verification: fresh `e28s3r`: `Test.Install.SecurityOverview`, `Test.Mcp.ServiceInstall`, `test-security-overview.sh --write`, `live security-overview` pass; warm `e28s3rw`: `Test.Install.SecurityOverview` passes after the review patches; `test-release-sequence.sh overviewdoc`, `test-cpf`, `test-class-rules`, `test-ci-config` pass. No stack of mine is left up.

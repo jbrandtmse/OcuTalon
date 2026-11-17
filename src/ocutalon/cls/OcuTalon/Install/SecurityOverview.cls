@@ -79,12 +79,13 @@ Parameter SQLOBJECT = "Ens.MessageHeader";
 ///   - mcpServer: one tool row (the same members as a tools row, with the toolset and an empty agents array) for each tool of the toolsets of OcuTalon.Mcp.Service's specification, sorted by name;
 ///   - fixKinds: one {"class","name","classification","resources"} per kind of Fix.Kind.Classes, sorted by class; every fix kind is risky (FIXCLASSIFICATION): it waits for an approval with a dry run;
 ///   - roles: one {"role","declaredBy","grants"} per role, sorted by role, where grants is the array of {"resource","permission","declaredBy"}
-///     sorted by resource and declaredBy the short names of the areas whose Grants() declare it;
+///     sorted by resource and declaredBy the short names of the areas whose Grants() declare it; off the online demo the list also holds the application role of OcuTalon's own MCP server
+///     (Install.Step.Mcp APPROLE) with the grants of APPROLERESOURCES, declared by Mcp, which makes that role itself and so declares no grant for the Roles step;
 ///   - demoOnly: the {"role","resource","permission"} that demo mode adds to the service role and the trace role;
 ///   - sql: the {"role","privilege","object","namespace","when"} of the trace role, when being always or demo mode on;
 ///   - serviceUser: {"user","roles","login"};
-///   - applications: one {"name","signIn","roles"} per web application of Install.Step.Web.Definitions whose MatchRoles adds roles to its requests,
-///     sorted by name, where signIn is "password" or "none (unauthenticated)" (its AutheEnabled, 32 or 64) and roles is the array of those roles.
+///   - applications: one {"name","signIn","roles"} per web application of Install.Step.Web.Definitions, and off the online demo the MCP server's application (Install.Step.Mcp ServiceApp),
+///     whose MatchRoles adds roles to its requests, sorted by name, where signIn is "password" or "none (unauthenticated)" (its AutheEnabled, 32 or 64) and roles is the array of those roles.
 /// Throws a status when a fact cannot be read.
 ClassMethod Model() As %DynamicObject
 {
@@ -276,6 +277,7 @@ ClassMethod RoleRows() As %DynamicArray
 		If area = "" Set area = entries(n, "area")
 		Set declared(grant.role, ..ResourceKey(grant.resource), area) = ""
 	}
+	Do ..AppRoleGrants(.composed, .declared)
 	Set result = []
 	Set role = ""
 	For {
@@ -291,6 +293,24 @@ ClassMethod RoleRows() As %DynamicArray
 		Do result.%Push({"role": (role), "declaredBy": (..Keys(.declared, role, ..ResourceKey(""))), "grants": (grants)})
 	}
 	Quit result
+}
+
+/// Adds to composed and declared the application role of OcuTalon's own MCP server and its grants (Install.Step.Mcp APPROLE and APPROLERESOURCES), declared by the Mcp area: its step makes
+/// the role, so no area declares it through Grants(). Adds nothing on an online-demo install, where the role does not exist.
+ClassMethod AppRoleGrants(ByRef composed, ByRef declared) [ Private ]
+{
+	Set mcp = "OcuTalon.Install.Step.Mcp"
+	If $ClassMethod(mcp, "OnlineDemo") Quit
+	Set role = $Parameter(mcp, "APPROLE")
+	Set area = $Piece(mcp, ..#AREAPREFIX, 2)
+	Set composed(role) = ""
+	Set pairs = $Parameter(mcp, "APPROLERESOURCES")
+	For i = 1:1:$Length(pairs, ",") {
+		Set resource = $Piece($Piece(pairs, ",", i), ":", 1)
+		If resource = "" Continue
+		Set composed(role, resource) = $Piece($Piece(pairs, ",", i), ":", 2)
+		Set declared(role, ..ResourceKey(resource), area) = ""
+	}
 }
 
 /// The subscript under which the declaration of a resource is kept: the resource, or a character that no resource holds for the declaration of a
@@ -350,12 +370,16 @@ ClassMethod ServiceUser() As %DynamicObject
 	Quit {"user": (##class(OcuTalon.Install.Step.Users).#SERVICEUSER), "roles": [(##class(OcuTalon.Install.Step.Users).#SERVICEROLE)], "login": "disabled"}
 }
 
-/// The web applications of the Web step (Install.Step.Web.Definitions) that add roles to their requests, how each signs its users in, and those roles: an
-/// application whose MatchRoles is not empty. Throws a status that names the application when its MatchRoles is not of the form :role[:role...], which
+/// The web applications of the Web step (Install.Step.Web.Definitions) and, off the online demo, the MCP server's (Install.Step.Mcp ServiceApp) that add roles to their requests, how each signs
+/// its users in, and those roles: an application whose MatchRoles is not empty. Throws a status that names the application when its MatchRoles is not of the form :role[:role...], which
 /// adds the roles to every request of the application; a match role would make that claim untrue.
 ClassMethod Applications() As %DynamicArray
 {
 	$$$ThrowOnError(##class(OcuTalon.Install.Step.Web).Definitions(.apps))
+	If '##class(OcuTalon.Install.Step.Mcp).OnlineDemo() {
+		Do ##class(OcuTalon.Install.Step.Mcp).ServiceApp(.service)
+		Merge apps(##class(OcuTalon.Install.Step.Mcp).#SERVICEAPP) = service
+	}
 	Set result = []
 	Set name = ""
 	For {

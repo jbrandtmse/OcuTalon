@@ -119,7 +119,7 @@ ClassMethod Grants() As %DynamicArray
 			If result.%SQLCODE < 0 Set sc = $$$ERROR($$$SQLError, result.%SQLCODE, result.%Message)
 		}
 		If $$$ISERR(sc) {
-			Do ..Warn("The Mcp area could not read the MCP servers, so it declares no grant: " _ $SYSTEM.Status.GetOneStatusText(sc))
+			Do ..Warn("The Mcp area could not read the MCP servers, so it declares no MCP server grant: " _ $SYSTEM.Status.GetOneStatusText(sc))
 			Quit
 		}
 		While result.%Next() {

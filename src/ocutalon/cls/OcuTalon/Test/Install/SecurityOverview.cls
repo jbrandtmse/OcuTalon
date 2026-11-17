@@ -2,7 +2,7 @@
 /// model against the security records of the instance, the splice of the generated sections and the fixed statement. Nothing here changes a
 /// security record or a grant. TestToolsMatchRunners sends a ToolInventory request to every enabled agent runner, so it needs the production of
 /// the CI throwaway running (it fails, never skips, when it does not), and it points the runners at the mock's key for the request and puts them back
-/// after the test (OnAfterOneTest). TestMcpServerSection (Story 28.3) pins the MCP server table and sentence of the privileges section and the client role's row.
+/// after the test (OnAfterOneTest). TestMcpServerSection (Story 28.3) pins the MCP server table and sentence of the privileges section, the client role's row, the application role's three rows and the application's row.
 Class OcuTalon.Test.Install.SecurityOverview Extends %UnitTest.TestCase
 {
 
@@ -383,6 +383,11 @@ Method TestMcpServerSection()
 	Do $$$AssertEquals($Length(text, heading _ rows _ lf _ sentence _ lf _ lf _ "### With demo mode on" _ lf) - 1, 1, "the section is the table of those two rows, the sentence and then the demo mode section, once")
 	Do $$$AssertTrue(..HasLine(text, "| `OcuTalonMCPClient` | `OcuTalon_MCPServer` | U | `Mcp` |"), "the Roles table lists OcuTalonMCPClient's one grant, declared by Mcp")
 	Do $$$AssertTrue('$Find(text, "`OcuTalonMCPClient` | `%DB_"), "and no database grant for it")
+	Do $$$AssertTrue(..HasLine(text, "| `OcuTalonMCPApp` | `%DB_OCUTALON_CODE` | R | `Mcp` |"), "the Roles table lists the application role's read grant on the code database, declared by Mcp")
+	Do $$$AssertTrue(..HasLine(text, "| `OcuTalonMCPApp` | `%DB_OCUTALON_DATA` | R | `Mcp` |"), "and on the data database")
+	Do $$$AssertTrue(..HasLine(text, "| `OcuTalonMCPApp` | `%DB_OCUTALON_PRIVATE` | R | `Mcp` |"), "and on the private database")
+	Do $$$AssertEquals($Length(text, "| `OcuTalonMCPApp` | `") - 1, 3, "and no other row of the Roles table for it")
+	Do $$$AssertTrue(..HasLine(text, "| `/mcp/ocutalon` | password | `OcuTalonMCPApp` |"), "the Application roles table lists /mcp/ocutalon, signing in with a password, with the application role")
 }
 
 /// DW-213: the grants that only demo mode adds are listed apart: the service role Read on the OCUORDERS data database, and the trace role Read
@@ -444,7 +449,16 @@ Method TestRoleRowsDeclaredBy()
 	Set bad = ""
 	Set rows = $ClassMethod(..#GENERATOR, "RoleRows")
 	Set iterator = rows.%GetIterator()
+	Set appRole = $Parameter("OcuTalon.Install.Step.Mcp", "APPROLE")
+	Set appRows = ""
 	While iterator.%GetNext(, .role) {
+		If role.role = appRole {
+			Set grants = role.grants.%GetIterator()
+			While grants.%GetNext(, .grant) {
+				Set appRows = appRows _ $Select(appRows = "": "", 1: ";") _ grant.resource_":"_grant.permission_":"_..List(grant.declaredBy, ",")
+			}
+			Continue
+		}
 		If role.grants.%Size() = 0 {
 			If ..List(role.declaredBy, ",") '= ..Areas(.areas, role.role, " ") Set bad = bad _ "; "_role.role_" shows "_..List(role.declaredBy, ",")
 			Continue
@@ -455,6 +469,8 @@ Method TestRoleRowsDeclaredBy()
 		}
 	}
 	Do $$$AssertEquals(bad, "", "each row names the areas whose Grants() declare it")
+	Do $$$AssertEquals(appRows, "%DB_OCUTALON_CODE:R:Mcp;%DB_OCUTALON_DATA:R:Mcp;%DB_OCUTALON_PRIVATE:R:Mcp", "the MCP server's application role, which the Mcp step makes and no Grants() declares, lists its three read grants, declared by Mcp")
+	Do $$$AssertEquals(..Areas(.areas, appRole, "%DB_OCUTALON_CODE") _ ..Areas(.areas, appRole, "%DB_OCUTALON_DATA") _ ..Areas(.areas, appRole, "%DB_OCUTALON_PRIVATE") _ ..Areas(.areas, appRole, " "), "", "control: no area declares that role or any grant of it through Grants()")
 	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
 	Do $$$AssertTrue(..HasLine(sections("privileges"), "| `OcuTalonServiceRole` | `%Ens_MessageResend` | U | `Fix` |"), "the table names Fix for the service role's resend grant")
 	Do $$$AssertTrue(..HasLine(sections("privileges"), "| `OcuTalonAdmin` | none | - | `Users` |"), "and Users for the admin role, which holds no resource")
@@ -722,13 +738,15 @@ Method TestPrivilegesMatchSecurityRecords()
 		Quit:name=""
 		Do $$$AssertEquals(..MatchRoles(name), $Get(listed(name)), name_$Select($Data(listed(name)): " adds the listed roles to its requests", 1: " adds no role, as it is not listed"))
 	}
+	Set mcpApp = ##class(OcuTalon.Install.Step.Mcp).#SERVICEAPP
+	Do $$$AssertEquals(..MatchRoles(mcpApp), $Get(listed(mcpApp), "<none>"), mcpApp_" adds exactly the roles listed for it")
 }
 
 // --- helpers ---
 
-/// The model's applications with the online-demo flag set to the given value: /ocutalon and /ocutalon/api add the roles of Web.APPLICATIONROLES and sign in
-/// with a password; /ocutalon/hook adds only the webhook role and signs in with none, and only with the flag off; no other application adds a role. The
-/// flag is put back, also after a failure.
+/// The model's applications and roles with the online-demo flag set to the given value: /ocutalon and /ocutalon/api add the roles of Web.APPLICATIONROLES and sign in
+/// with a password; /ocutalon/hook adds only the webhook role and signs in with none, and only with the flag off; /mcp/ocutalon adds only the MCP application role, which the
+/// model lists among its roles, and both only with the flag off; no other application adds a role. The flag is put back, also after a failure.
 Method ApplicationsFor(online As %Boolean) [ Private ]
 {
 	Set saved = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
@@ -745,9 +763,17 @@ Method ApplicationsFor(online As %Boolean) [ Private ]
 		}
 		Set roles = ##class(OcuTalon.Install.Step.Web).#APPLICATIONROLES
 		Set hook = $Select(online: "", 1: ";/ocutalon/hook=:"_##class(OcuTalon.Install.Step.Web).#HOOKROLE)
+		Set mcp = $Select(online: "", 1: "/mcp/ocutalon=:"_##class(OcuTalon.Install.Step.Mcp).#APPROLE_";")
+		Set mcpSignIn = $Select(online: "", 1: "/mcp/ocutalon=password;")
 		Set label = $Select(online: "online demo", 1: "local install")
-		Do $$$AssertEquals(shown, "/ocutalon="_roles_";/ocutalon/api="_roles_hook, label_": /ocutalon and /ocutalon/api add the roles of Web.APPLICATIONROLES, /ocutalon/hook adds only the webhook role off the online demo, and no other application of the Web step adds a role")
-		Do $$$AssertEquals(signIn, "/ocutalon=password;/ocutalon/api=password"_$Select(online: "", 1: ";/ocutalon/hook=none (unauthenticated)"), label_": each application's sign-in is read from its AutheEnabled")
+		Set appRoleListed = 0
+		Set roleIterator = model.roles.%GetIterator()
+		While roleIterator.%GetNext(, .roleRow) {
+			If roleRow.role = ##class(OcuTalon.Install.Step.Mcp).#APPROLE Set appRoleListed = 1
+		}
+		Do $$$AssertEquals(appRoleListed, 'online, label_": the MCP application role is listed among the roles only off the online demo")
+		Do $$$AssertEquals(shown, mcp_"/ocutalon="_roles_";/ocutalon/api="_roles_hook, label_": /ocutalon and /ocutalon/api add the roles of Web.APPLICATIONROLES, /ocutalon/hook adds only the webhook role and /mcp/ocutalon only the MCP application role, both off the online demo, and no other application adds a role")
+		Do $$$AssertEquals(signIn, mcpSignIn_"/ocutalon=password;/ocutalon/api=password"_$Select(online: "", 1: ";/ocutalon/hook=none (unauthenticated)"), label_": each application's sign-in is read from its AutheEnabled")
 	} Catch exception {
 		Set error = exception.DisplayString()
 	}

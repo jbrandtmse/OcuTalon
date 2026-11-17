@@ -2187,9 +2187,9 @@ OVW_MCP_LIMITS="OcuTalon's time limits for MCP servers are not hard deadlines. A
 OVW_MCP_EXAMPLE=docs/mcp-jira-example.md
 OVW_MCP_DEMOOFF="MCP servers are off on the online demo: nobody can add one there, and OcuTalon reaches none."
 OVW_MCP_DATA="- In calls to the MCP servers an admin has added, never on the online demo: a check that the server answers, the list of its tools, and each tool call with its arguments, which can hold content that OcuTalon read. The results come back as untrusted content."
-OVW_MCP_AUDIT='- `MCP`: a server added or removed, or a tool called or refused;'
+OVW_MCP_AUDIT="- \`MCP\`: a server added or removed, a tool called or refused, or a tool that OcuTalon's own MCP server served;"
 OVW_MCP_OPENING="On a local or IPM install, an admin can add MCP servers, and their tools become OcuTalon's tools under the same gate, approval and audit as the built-in ones."
-OVW_MCP_PAIRING="Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, call an MCP tool, or classify an MCP tool, so a release without those features writes none of them."
+OVW_MCP_PAIRING="Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, call an MCP tool, serve a call of OcuTalon's own MCP server, or classify an MCP tool, so a release without those features writes none of them."
 # The overview's bullet about sources, a whole line of its MCP tools section (Story 22.12), without its "- ".
 OVW_MCP_SOURCE="An admin can make a Read-only tool a source, which OcuTalon calls on a schedule through the same gate, audit entry and agent step. Its new results reach OcuTalon's attention decisions only as untrusted items. A source whose tool is no longer Read-only makes no call, and a source that wasn't checked never counts as passed in the digest."
 
@@ -2696,7 +2696,7 @@ the Data section lacks the MCP bullet word for word"
   eq "control: the demo sentence changed in the overview" "$(ovw_doc_problems "$d/demooff.md")" "the MCP tools section lacks the sentence that says MCP is off on the online demo"
   sed 's/^- In calls to the MCP servers an admin has added, never on the online demo: /- In calls to the MCP servers an admin has added: /' "$doc" > "$d/mcpdata.md"
   eq "control: the Data bullet changed" "$(ovw_doc_problems "$d/mcpdata.md")" "the Data section lacks the MCP bullet word for word"
-  sed 's/^- `MCP`: a server added or removed, or a tool called or refused;$/- `MCP`: a server added or removed;/' "$doc" > "$d/mcpaudit.md"
+  sed 's/^- `MCP`: a server added or removed, a tool called or refused, or a tool that OcuTalon'"'"'s own MCP server served;$/- `MCP`: a server added or removed;/' "$doc" > "$d/mcpaudit.md"
   eq "control: the MCP audit line changed" "$(ovw_doc_problems "$d/mcpaudit.md")" "the Approval and audit section lacks the MCP audit line word for word"
   sed 's/ or classify an MCP tool, so a release without those features writes none of them\./, so a release without those features writes none of them./' "$doc" > "$d/pairing.md"
   eq "control: the Pairing, MCP and Tool sentence changed" "$(ovw_doc_problems "$d/pairing.md")" "the Approval and audit section lacks the Pairing, MCP and Tool sentence word for word"

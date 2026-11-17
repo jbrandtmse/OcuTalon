@@ -9,6 +9,8 @@
 ///   - TestStepOrder and TestFreshInstallRefusesNoStep: the Mcp step runs before Roles; the start's log shows STEP Mcp OK before STEP Roles OK, and the step makes the application role, the
 ///     application and the resource from nothing in that order (IRIS refuses an application whose MatchRoles names a missing role);
 ///   - TestStepRewritesDrift: a changed application, role or resource is put back to its definition by the next run, with no new object;
+///   - TestClosesPublicPermission (S-28.3-4): the step takes a public permission (RW or U) away from the resource on every start, so no signed-in user without OcuTalonMCPClient passes the
+///     resource check and receives the application role;
 ///   - TestGrants (AC 2): off the online demo Grants declares OcuTalonMCPClient with OcuTalon_MCPServer:U and the per-server pairs; on it, none;
 ///   - TestDemoRemoves (AC 2): on the online demo the step deletes the application, the resource and both roles where they exist, and makes none.
 Class OcuTalon.Test.Mcp.ServiceInstall Extends OcuTalon.Test.Mcp.ServiceCase
@@ -312,6 +314,35 @@ ClassMethod Drift(application As %String, appRole As %String, resource As %Strin
 	Kill properties
 	Set properties("PublicPermission") = "R"
 	Do ##class(Security.Resources).Modify(resource, .properties)
+}
+
+/// S-28.3-4: with the online demo off, the real resource is given a public permission, and the step closes it again, for RW and for U. OnAfterOneTest puts the installed objects back.
+Method TestClosesPublicPermission()
+{
+	If '..Guard() Quit
+	Set step = ..#STEP
+	Set resource = $Parameter(step, "SERVICERESOURCE")
+	Do ..SetOnlineDemo(0)
+	Do $$$AssertStatusOK($ClassMethod(step, "Run"), "control: the step runs off the online demo")
+	Do $$$AssertEquals(..ResourceOf(resource, .res), "exists", "control: the resource exists")
+	Do $$$AssertEquals($Get(res("PublicPermission")), "", "control: and has no public permission")
+	For permission = "RW", "U" {
+		Do $$$AssertStatusOK(..SetPublicPermission(resource, permission), "the resource is given the public permission " _ permission)
+		Do ..ResourceOf(resource, .res)
+		Do $$$AssertEquals($Get(res("PublicPermission")), permission, "control: it holds " _ permission _ " for the public")
+		Do $$$AssertStatusOK($ClassMethod(step, "Run"), "the step runs")
+		Do ..ResourceOf(resource, .res)
+		Do $$$AssertEquals($Get(res("PublicPermission")), "", "and the public permission " _ permission _ " is gone")
+	}
+}
+
+/// Sets the public permission of the resource. Runs in %SYS.
+ClassMethod SetPublicPermission(resource As %String, permission As %String) As %Status [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Set properties("PublicPermission") = permission
+	Quit ##class(Security.Resources).Modify(resource, .properties)
 }
 
 Method TestGrants()

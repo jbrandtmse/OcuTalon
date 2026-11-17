@@ -64,6 +64,9 @@ On your own install, OcuTalonServiceRole holds %Ens_ProductionConfig:W only beca
 | Role | Resource | Permission | Declared by |
 | --- | --- | --- | --- |
 | `OcuTalonAdmin` | none | - | `Users` |
+| `OcuTalonMCPApp` | `%DB_OCUTALON_CODE` | R | `Mcp` |
+| `OcuTalonMCPApp` | `%DB_OCUTALON_DATA` | R | `Mcp` |
+| `OcuTalonMCPApp` | `%DB_OCUTALON_PRIVATE` | R | `Mcp` |
 | `OcuTalonMCPClient` | `OcuTalon_MCPServer` | U | `Mcp` |
 | `OcuTalonServiceRole` | `%Ens_ConfigItemRun` | U | `Fix` |
 | `OcuTalonServiceRole` | `%Ens_MessageResend` | U | `Fix` |
@@ -115,6 +118,7 @@ OcuTalon's MCP server, `OcuTalon.Mcp.Service` at `/mcp/ocutalon` (password sign-
 
 | Web application | Sign-in | Roles added to its requests |
 | --- | --- | --- |
+| `/mcp/ocutalon` | password | `OcuTalonMCPApp` |
 | `/ocutalon` | password | `%DB_OCUTALON_CODE`, `%DB_OCUTALON_DATA`, `%DB_OCUTALON_PRIVATE` |
 | `/ocutalon/api` | password | `%DB_OCUTALON_CODE`, `%DB_OCUTALON_DATA`, `%DB_OCUTALON_PRIVATE` |
 | `/ocutalon/hook` | none (unauthenticated) | `OcuTalonWebhook` |
@@ -174,7 +178,7 @@ The audit log has one writer, the IRIS audit log, source `OcuTalon`. The types a
 - `MCP`: a server added or removed, a tool called or refused, or a tool that OcuTalon's own MCP server served;
 - `Tool`: a tool's classification.
 
-Every entry carries its time (the audit log's own timestamp), the IRIS user who acted or answered, the session and the channel. A redactor removes keys, access tokens, passwords and Telegram identities by their names and shapes, and a sensitive setting's values are blanked. Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, call an MCP tool, or classify an MCP tool, so a release without those features writes none of them.
+Every entry carries its time (the audit log's own timestamp), the IRIS user who acted or answered, the session and the channel. A redactor removes keys, access tokens, passwords and Telegram identities by their names and shapes, and a sensitive setting's values are blanked. Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, call an MCP tool, serve a call of OcuTalon's own MCP server, or classify an MCP tool, so a release without those features writes none of them.
 
 Roles and accounts:
 
