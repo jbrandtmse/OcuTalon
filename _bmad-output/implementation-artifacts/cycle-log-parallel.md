@@ -4668,3 +4668,4 @@
 2026-11-17T06:55:17Z	Run	ci_green	feature 81265443f ci=44007120511 att2 green (DW-1474 flake, ci-25)
 2026-11-17T06:55:17Z	Epic 0	ci_green_verified	0.40 9c97ad90f runs=44029459969,44029459957
 2026-11-17T06:55:17Z	Epic 0	merge_enqueued	0.40 head=9c97ad90f
+2026-11-17T07:03:47Z	Epic 0	merged	0.40 merge=886f05ed3
