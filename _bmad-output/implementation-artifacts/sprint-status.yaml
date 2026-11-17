@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-17-2026 01:21
+last_updated: 11-17-2026 01:58
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -401,7 +401,7 @@ development_status:
 
   epic-27: in-progress
   27-1-receive-slack-events-by-webhook: done
-  27-2-reply-as-slack-messages-with-no-socket-mode: backlog
+  27-2-reply-as-slack-messages-with-no-socket-mode: ready-for-dev
   27-3-link-slack-members-in-settings: done
   epic-27-retrospective: optional
 
