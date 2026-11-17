@@ -1,13 +1,14 @@
 /// Tests of the use-time role check that Conversation makes for an Item of channel slack (Story 27.3; AD-14, AD-24; Contest Planner ruling (a)): the Item is taken only when its session's
 /// IRIS user may chat by web chat's rule (Web.Public.Shell MayChat on the user's recursed role set, read by Bridge.Approval RolesOf). Safe on a slot: no production runs there, so the tests call
-/// OnRequest on shadow instances of OcuTalon.Test.Core.ConversationProbe, with real IRIS users that hold real roles (the fixture users are made in %SYS and removed after each test; a role the
-/// instance does not have is made and removed with them).
-///   - TestViewerOnlyRefused: a viewer-only user's Item makes no Turn, publishes nothing, sends nothing to Decide (no model call, no tool call) or Notify (no reply is sent), writes no Delivery
-///     row and leaves exactly one Channel.Slack.Ignored for Intake, with the kind message.im, the reason not_user and no event id;
+/// OnRequest on shadow instances of OcuTalon.Test.Core.ConversationProbe, with real IRIS users that hold real roles (the fixture users are made in %SYS and removed after the last test; a role
+/// the instance does not have is made and removed with them). No Delivery row can be written here (only the channel Out operations write one): live:slack-hook phase 7 pins that.
+///   - TestViewerOnlyRefused: a viewer-only user's Item makes no Turn, publishes nothing, sends nothing to Decide (no model call, no tool call) or Notify (no reply is sent)
+///     and leaves exactly one Channel.Slack.Ignored for Intake, with the kind message.im, the reason not_user and no event id;
 ///   - TestRoleRemovedAfterLinking: a user who holds OcuTalonUser has a turn; after the role is removed, the next Item of the same session is refused with one record and no second Turn;
-///   - TestAdminWithUserAllowed: a user with OcuTalonAdmin and OcuTalonUser has a Turn and its Decide request, and no record;
+///   - TestAdminWithUserAllowed: a user with OcuTalonAdmin and OcuTalonUser has a Turn and its Decide request, and no record, and a user who holds both OcuTalonUser and OcuTalonViewer
+///     has a Turn, as web chat decides;
 ///   - TestAdminOnlyFollowsWebChat: a user with OcuTalonAdmin alone is refused, and the control is web chat's own check on the same roles (HasRole 0, so web chat refuses it);
-///     a viewer who also holds OcuTalonAdmin is refused, and a user who holds both OcuTalonUser and OcuTalonViewer is allowed, as web chat decides;
+///     a viewer who also holds OcuTalonAdmin is refused, as web chat decides;
 ///   - TestUnreadableRolesRefused: a session whose IRIS user has no account, and one with no IRIS user, are refused, and RolesOf answers 0 with no roles for each;
 ///   - TestRoleReadErrorRefused: a role check that throws (the probe's MayChat seam) refuses the Item of a user who would be allowed, with the same one record;
 ///   - TestRecordFailureIsOneContentFreeWarning: when the send of the not_user record fails, the Item is still not taken, the status is OK (no retry) and one warning is logged that names
@@ -60,6 +61,7 @@ Method OnBeforeOneTest() As %Status
 
 Method OnAfterOneTest() As %Status
 {
+	Kill ^OcuTalonTest("ConversationProbeMayChat")
 	Set ..Refs = ##class(OcuTalon.Test.Data.Fixture).AdoptTurns(..Sessions, ..Refs)
 	Quit $SYSTEM.Status.OK()
 }
@@ -193,14 +195,13 @@ Method TestOtherChannelsUnchecked()
 	Do $$$AssertEquals($ListLength(..Sent("Intake")), 0, "and no record is made")
 }
 
-/// Asserts the whole of a refusal: no Turn, no event, nothing sent but the one Ignored for Intake with fixed content, no Delivery row, nothing logged, and no record that holds the text, the user or the session.
+/// Asserts the whole of a refusal: no Turn, no event, nothing sent but the one Ignored for Intake, every field of which is fixed (so it holds no text, user or session), and nothing logged.
 Method AssertRefused(session As %String, user As %String, text As %String, mark As %Integer, what As %String) [ Private ]
 {
 	Do $$$AssertEquals(..Turns(session).Count(), 0, what_" makes no Turn")
 	Do $$$AssertEquals(..ChatEvents(session), 0, what_" publishes nothing")
 	Do $$$AssertEquals($ListLength(..Sent("Decide")), 0, what_" makes no model call and no tool call (nothing goes to Decide)")
 	Do $$$AssertEquals($ListLength(..Sent("Notify")), 0, what_" sends no reply (nothing goes to Notify)")
-	Do $$$AssertEquals(..Deliveries(session), 0, what_" writes no Delivery row")
 	Do $$$AssertEquals(..Calls(), 1, what_" makes exactly one send")
 	Set sent = ..Sent("Intake")
 	Do $$$AssertEquals($ListLength(sent), 1, what_" leaves one record, for Intake")
@@ -303,14 +304,6 @@ Method ChatEvents(session As %String) As %Integer [ Private ]
 		If event.type = "chat.message" Set count = count + 1
 	}
 	Quit count
-}
-
-/// The number of Delivery rows of the session.
-Method Deliveries(session As %String) As %Integer [ Private ]
-{
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Delivery WHERE OwnerRef = ?", session)
-	Do result.%Next()
-	Quit +result.%GetData(1)
 }
 
 /// The number of the newest row of the event log, 0 when it is empty.

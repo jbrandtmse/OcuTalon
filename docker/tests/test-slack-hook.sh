@@ -27,7 +27,7 @@
 #   6. (Story 27.3) the README admin DELETEs the link (200, the row gone, one more Settings entry, from the user to nothing, with no id in either entry), and a further signed direct message from the
 #      member is Ignored (unlinked), makes no Turn and leaves the open approval request pending.
 #   7. (Contest Planner ruling (a)) the use-time role check, in the production job (Core.Conversation, channel slack only): fixture IRIS accounts that hold OcuTalonUser are linked through the real route and
-#      get a Turn each; a viewer-only account, an admin-only account and an account with OcuTalonAdmin and no chat role are refused at link time (400 user_unknown, no audit entry) and are not in the list's
+#      get a Turn each; a viewer-only account, an admin-only account and a viewer who also holds OcuTalonAdmin are refused at link time (400 user_unknown, no audit entry) and are not in the list's
 #      users; an admin who also holds OcuTalonUser keeps getting turns; an account that is cut down after it was linked (to the viewer role alone, to OcuTalonAdmin alone, to no role) gets no Turn from its next
 #      direct message, no Decide request, no Notify (no reply is sent), no Delivery row and exactly one content-free Ignored with the reason not_user for each, and no marker of a refused message is in the event
 #      log, the live events, the audit log or the container's logs.
