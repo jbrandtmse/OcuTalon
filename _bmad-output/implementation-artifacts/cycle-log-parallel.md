@@ -4625,3 +4625,4 @@
 2026-11-17T01:44:05Z	Epic 0	owner_decision	via=contest_planner triage-accept: guide_b+L237_APPROVED; fixtures=3_non-held-out+1_synthetic_act(no_held-out); build_approved
 2026-11-17T01:52:34Z	Run	ci_green	feature 05915a781 (25.9 merge) ci+lane-a green
 2026-11-17T01:52:34Z	Epic 21	merge_enqueued	DW-1421_r4 head=f70f5fa56
+2026-11-17T01:52:36Z	Epic 21	merged	DW-1421_r4 merge=5f1996ed6
