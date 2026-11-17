@@ -106,3 +106,4 @@
 2026-11-17T06:38:18Z	Story 28.3	fresh_check	env=recipe(fresh_lane-C:shard_lane-a@Mcp_e28s3f5,class_Test.Digest.Store_e28s3f6,class_Test.Bridge.CodeRules_e28s3f7) tests=22_classes result=pass order=forward note=Mcp_20/20(SourceRunProduction_47.67s);Store_0.91s;CodeRules_8.81s
 2026-11-17T06:38:18Z	Epic 28	ruling	question=owner_wrap-up_2026-11-17(scope_frozen,1.0.13) choice=finish_28.3_only;28.1,28.4,28.5_DEFERRED(owner_wrap-up_2026-11-17,stay_backlog);after_28.3_merges:epic_close_for_shipped_stories_only,then_idle category=decide source=prompts/wrap-up-1.0.13-scope-20261117.md policy=5086036
 2026-11-17T06:38:18Z	Story 28.3	committed	sha=pending_push note=rework_3_reviewed;pushing_once_HEAD_without_skip_token
+2026-11-17T06:39:12Z	Story 28.3	committed	sha=f58e19991 code_sha=b5253d6e0 submodules= ci=pending runs=44032736217,44032736062 note=final_rework_head(iteration_3_of_3);a_further_story_red_sets_28.3_aside_for_the_Planner
