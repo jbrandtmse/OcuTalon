@@ -2,7 +2,7 @@
 title: "Story 28.3: Offer OcuTalon's read-only tools to MCP clients"
 type: 'feature'
 created: '2026-11-16'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '1946cceac4479eee849cdc62b98996d3ab7923dd'
 baseline_commit: '1946cceac4479eee849cdc62b98996d3ab7923dd'
 review_loop_iteration: 0
@@ -119,6 +119,10 @@ deferred:
 **Rework iteration 2 (2026-11-17, Contest Planner ruling on DW-1470, `prompts/story-283-rulings-20261116.md` last section; work ONLY this item):**
 - [x] [Review] DW-1470 / S-28.3-4 hardening: `Install.Step.Mcp.ApplyService` closes `OcuTalon_MCPServer`'s public permission FIRST, UNCONDITIONALLY, before anything that can fail, on every start (when the resource exists; keep the close after `MakeResource` too, for a resource the step just created). A failure of any later part (`ApplyAppRole`, `ApplyApplication`, `MakeResource`) must never leave a public permission open. Add a test: an earlier part fails (a probe seam or subclass that makes `ApplyAppRole` or `ApplyApplication` return an error), with a public permission set beforehand; the step returns the error AND the public permission ends up closed. Demonstrate its mutation (move the first close back after the failing part → red) and write the `mutation:` line. Online demo behaviour unchanged. No user-facing text changes.
 
+
+**Rework iteration 3 (2026-11-17, trigger ci: run 44006481188, job iris (shards) on runner ocutalon-ci-31, unit shard:lane-a@Install,Digest,Eval; work ONLY this item):**
+- [ ] [CI] `OcuTalon.Test.Digest.Store.TestPurgeByTheTask` (`src/ocutalon/cls/OcuTalon/Test/Digest/Store.cls:398`) pins the Digest step at position 9 of `Install.Registry.Order()` ("and the order of the steps names it after Demo, for the thresholds it seeds"); 28.3's new `Mcp` step (before `Roles`) moved it to 10. Make the assertion state its intent instead of an absolute index: Digest comes right after Demo (`$ListFind(order, "Digest") = $ListFind(order, "Demo") + 1`, with Demo found), keeping the assertion's message text. Check the other `Registry).Order()` users (`Test.Install.RetentionRules`, `Test.Digest.Thresholds`, `Test.Mcp.ServiceInstall`) for any other absolute position this order change breaks (they passed in CI; change them only if they pin an absolute index). Demonstrate the mutation (put Digest anywhere but right after Demo → red) and write the `mutation:` line. This was a missed shared surface (the installer step order) — note it under Code Map drift.
+
 **Acceptance Criteria:**
 - Given an install with `onlineDemo` 0, when the installer steps run, then the `Mcp` step runs before `Roles`, `OcuTalon_MCPServer` exists with no public permission, `/mcp/ocutalon` has exactly `ServiceApp()`'s properties (password only, namespace OCUTALON, no application roles, outside the sign-in group, dispatch `OcuTalon.Mcp.Service`), `OcuTalonMCPClient` holds exactly `OcuTalon_MCPServer:U`, `%DB_OCUTALON_CODE:R`, `%DB_OCUTALON_DATA:R` and `%DB_OCUTALON_PRIVATE:R` and no SQL privilege, and `OcuTalonUser` is unchanged (`Test.Mcp.ServiceInstall`, fresh stack).
 - Given `onlineDemo` 1, when the Mcp step runs and `Grants()` is read, then no application, resource or `OcuTalonMCPClient` grant exists or is declared (a present application and resource are deleted), `Service.OnAuthenticate` returns an error whose text is P1, and each tool answers `{"ok": false, "message": P1}` and reads nothing (`Test.Mcp.ServiceInstall`, `Test.Mcp.ServiceTools`).
@@ -199,6 +203,8 @@ Rejected:
 - `MakeResource` failing is not tested; the test resets to "" rather than the prior value; no new Commands line (Auditor) -- false/informational: a failed `MakeResource` leaves no open permission (the resource was closed first or does not exist); "" is the installed state and `Restore` re-runs the step; the Commands section is tracking text.
 
 ## Spec Change Log
+
+- 2026-11-17 (lead, rework iteration 3, trigger ci): CI story red in Test.Digest.Store (absolute step-order index); [CI] item added; status re-opened.
 
 - 2026-11-17 (lead, rework iteration 2): the Planner ruled DW-1470 fixed in 28.3 (close the public permission first, unconditionally; pin a failing-earlier-part test); status re-opened to in-progress.
 
