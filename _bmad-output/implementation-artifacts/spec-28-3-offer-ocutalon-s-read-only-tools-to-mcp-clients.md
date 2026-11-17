@@ -2,7 +2,7 @@
 title: "Story 28.3: Offer OcuTalon's read-only tools to MCP clients"
 type: 'feature'
 created: '2026-11-16'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '088dbf0c4d59a4dec6d1a898e34b309e19646a9b'
 baseline_commit: '088dbf0c4d59a4dec6d1a898e34b309e19646a9b'
 review_loop_iteration: 0
@@ -107,6 +107,14 @@ deferred:
 - `src/ocutalon/cls/OcuTalon/Test/Install/RolesAssign.cls` -- `CreateUser` gains an optional `Output password` (Rule 2, for the HTTP fixtures).
 - Tests (new, area `Mcp`): `Test/Mcp/ServiceReadOnly.cls`, `ServiceTools.cls` (extends `Test.Watch.Case`, reuses `Test.Tools.RecentActivity.Demo`), `ServiceReadProbe.cls` (extends `Mcp.ServiceRead`, `Caller()` from a test global), `ZzWideService.cls` (extends `Mcp.Service`, `SPECIFICATION = "OcuTalon.Mcp.ServiceTools,OcuTalon.Tools.Memory"`), `ServiceInstall.cls`, `ServiceHttp.cls` (throwaway and CI only, guarded like `LiveRolesApi`); changed: `Test/Bridge/Audit.cls`, `Test/Install/SecurityOverview.cls`, `Test/Install/Registry.cls`.
 
+
+**Rework iteration 1 (2026-11-17, trigger fix_pack: Contest Planner text and overview rulings, `prompts/story-283-rulings-20261116.md` last section; work ONLY these items):**
+- [ ] [Review] `src/ocutalon/cls/OcuTalon/Install/Step/Mcp.cls:122` warning text becomes, verbatim: "The Mcp area could not read the MCP servers, so it declares no MCP server grant: " (followed by the status text, as now). Update any test that pins the old text.
+- [ ] [Review] `docs/security-overview.md:177` (and its source, if the sentence is generated or pinned anywhere, e.g. `Install.SecurityOverview` or a docs test): the sentence becomes, verbatim: "Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, call an MCP tool, serve a call of OcuTalon's own MCP server, or classify an MCP tool, so a release without those features writes none of them." (only the words "serve a call of OcuTalon's own MCP server," are new).
+- [ ] [Review] DW-1461 (APPROVED): the generated security overview adds the Application roles row "| `/mcp/ocutalon` | password | `OcuTalonMCPApp` |" and the Roles rows for `OcuTalonMCPApp`'s three read grants (`%DB_OCUTALON_CODE`, `%DB_OCUTALON_DATA`, `%DB_OCUTALON_PRIVATE`, R), generated the same way as `OcuTalonWebhook`'s rows (extend that mechanism; do not hand-write the rows); the committed `docs/security-overview.md` equals the generation; `Test.Install.SecurityOverview` (and `live:security-overview`) pin it.
+- [ ] [Review] SECURITY INVARIANT S-28.3-4 (Planner ruling, binding): the Mcp step closes `OcuTalon_MCPServer`'s PUBLIC permission on every start (a public permission would let any signed-in user pass the resource check and receive the private-database application role). Pin it: a test that sets a public permission (e.g. `RW` or `U`) on the resource, runs the Mcp step (off-demo), and asserts the public permission is empty afterwards; demonstrate its mutation (drop the closing call → red) and write the `mutation:` line.
+- Keep everything else byte-identical. No other text changes. Lane-C throwaways only (tags `e28s3r`/`e28s3rw`).
+
 **Acceptance Criteria:**
 - Given an install with `onlineDemo` 0, when the installer steps run, then the `Mcp` step runs before `Roles`, `OcuTalon_MCPServer` exists with no public permission, `/mcp/ocutalon` has exactly `ServiceApp()`'s properties (password only, namespace OCUTALON, no application roles, outside the sign-in group, dispatch `OcuTalon.Mcp.Service`), `OcuTalonMCPClient` holds exactly `OcuTalon_MCPServer:U`, `%DB_OCUTALON_CODE:R`, `%DB_OCUTALON_DATA:R` and `%DB_OCUTALON_PRIVATE:R` and no SQL privilege, and `OcuTalonUser` is unchanged (`Test.Mcp.ServiceInstall`, fresh stack).
 - Given `onlineDemo` 1, when the Mcp step runs and `Grants()` is read, then no application, resource or `OcuTalonMCPClient` grant exists or is declared (a present application and resource are deleted), `Service.OnAuthenticate` returns an error whose text is P1, and each tool answers `{"ok": false, "message": P1}` and reads nothing (`Test.Mcp.ServiceInstall`, `Test.Mcp.ServiceTools`).
@@ -148,6 +156,8 @@ Rejected:
 - Row 11 uncommitted and spec frontmatter/Shared surfaces stale (Auditor) -- the row is QA's working-tree change for the lead's commit; the fix edits the spec.
 
 ## Spec Change Log
+
+- 2026-11-17 (lead, rework iteration 1, trigger fix_pack): Planner rulings on DW-1461/DW-1462 and the public-permission invariant S-28.3-4 added as four [Review] items; status re-opened to in-progress.
 
 - 2026-11-16 (lead, Planner ruling on Task 0b): G3 application-role design and the G1 change APPROVED; P8 approved with one edit ("Outside that application, `OcuTalonMCPClient` reads none ..."); two pins added (outside-app `<PROTECT>` on all three databases; fresh install refuses no step); `iris-mcp-server` `$Roles` marked inference until 28.5.
 
@@ -209,6 +219,8 @@ Rejected:
 **Code Map drift (implement stage, 2026-11-16, checked against the tree after the integrate-forward):** every reference matched at its line or within a line or two, except: `Install/Step/Web.cls` `RemoveHook` is at 372 (the map ends at 370); `Tools/CommandCall.cls` `Session()` is the method at 66 with its doc at 62-65 (the map says 56-66); `docs/install-ipm.md` has `STEP Public OK 0.0s` at lines 203 and 314 (the map: 204 and 315); `ci/units.sh` line 156 is now a comment, the `shards-2` entry is at 166 (line 20, the lane-a areas, is unchanged); `docker/tests/lib-live.sh` `expected_run` is at 886 and `Test/Install/Registry.cls` `TestOrder` at 123 (within one line of the map). Two facts the map does not carry: `docker/tests/test-class-rules.sh` has an allow-list of the only unchecked `%Prepare` calls (`ALLOW_UNCHECKED`), so `Mcp.Service:OwnerOf` is added to it (and to the rule's one-line name); and `Install.Step.Roles.Run` on a demo-mode stack rewrites the service role and drops the grants that only the Demo step gives, so no test of this story runs it (`Test.Mcp.ServiceInstall` composes instead, and puts the Mcp step's objects back itself).
 
 **Decided in-stage (implement, 2026-11-16):** the sentences that `Service.ReadOnlyProblem` puts in the `OnAuthenticate` error ("The tool X is not read-only. No tool is offered.", "A toolset of the specification could not be read.") and the IRIS descriptions "OcuTalon MCP server access" and "OcuTalon MCP server application role" are developer or admin diagnostics, not shipped product text, and are flagged for the Planner; `Mcp.Service:OwnerOf` joined the unchecked-prepare allow-list of `docker/tests/test-class-rules.sh`; `ApplyService` also closes the resource's public permission at every start; test-only fixture users hold `OcuTalonMCPClient` transiently and `ServiceRoles` uses the copy role `ZzMcpInside` so the real `OcuTalonMCPApp` is held by no one; `OcuTalonMCPApp` and `/mcp/ocutalon` are not rows of the overview's Roles and Application tables (P8 covers them in prose).
+
+**SECURITY INVARIANT S-28.3-4 (Planner ruling 2026-11-17, binding):** the Mcp step closes `OcuTalon_MCPServer`'s public permission on every start, so no signed-in user without `OcuTalonMCPClient` passes the resource check (and so receives the application role `OcuTalonMCPApp`). Pinned by a test (rework iteration 1). Planner text rulings: the `Service.cls` refusal errors and the two Portal descriptions are KEPT as written; `Mcp.cls:122` and `security-overview.md:177` fixed verbatim; DW-1461 overview rows APPROVED; footprint extensions (`docker/tests/test-class-rules.sh`, `docker/tests/test-online-demo.sh`) approved.
 
 **Governing ADs (Rule 6):** AD-1 (state changes only as production messages; served tools submit none), AD-4 (owner from the caller; ownership API reads), AD-10 (classification by the gate's readers; see G6), AD-13 (web applications), AD-17 (one audit writer; `served`), AD-21 (MCP server bullets), AD-23 (installer order), AD-24 (roles; the MCP server bullet), AD-25 (no MCP endpoint on the demo), AD-29/AD-33 (lanes; Lane A files only). No AC contradicts an AD's Rule; AD-10 needs one clarifying sentence (G6) and AD-23's order gains `Mcp` (G4).
 

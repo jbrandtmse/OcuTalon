@@ -8900,11 +8900,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: SecurityOverview.Applications reads only Web.Definitions and RoleRows only Grants(), so the one application role with R on OCUTALON_PRIVATE is in neither table (OcuTalonWebhook, also an application role with no members, is in both) and TestPrivilegesMatchSecurityRecords never checks it.
 - 2026-11-17T00:33:45Z status=decision-pending owner=burndown by=cr note=Planner: add the generated rows (Applications from Mcp.ServiceApp, role rows for APPROLE) or keep prose-only (in-stage choice)
+- 2026-11-17T01:19:07Z status=open owner=28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients by=planner note=APPROVED (story-283 rulings, last section): add the generated rows; rework iteration 1
 
 ### DW-1462: 28.3: user-facing texts not yet ruled: ReadOnlyProblem refusal sentences, the IRIS descriptions of OcuTalon_MCPServer and OcuTalonMCPApp, and two sentences 28.3 made stale
 - source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: The implement stage added refusal sentences (sent as OnAuthenticate's 401 error) and two Portal descriptions; Mcp.Grants' warning 'so it declares no grant' and docs/security-overview.md's 'written only by the features ...' sentence no longer describe 28.3's behaviour.
 - 2026-11-17T00:33:45Z status=decision-pending owner=burndown by=cr note=human=Planner text ruling; exact texts and proposals in the 28.3 spec's Review Findings
+- 2026-11-17T01:19:08Z status=open owner=28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients by=planner note=ruled: keep the Service.cls refusals and Portal descriptions; fix Mcp.cls:122 and security-overview.md:177 verbatim; rework iteration 1
 
 ### DW-1463: 28.3: Mcp.Service.OwnerOf copies Data.Session.ForUser's lookup SQL (Lane B), so the served tools and the chat could resolve a different session if ForUser's lookup changes
 - source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: low | fix-risk: low | footprint: out-of-footprint
