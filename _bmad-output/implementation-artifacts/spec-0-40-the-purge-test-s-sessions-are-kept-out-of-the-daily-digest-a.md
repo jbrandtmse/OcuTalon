@@ -24,7 +24,7 @@ deferred: []
 
 - [x] `Test/Data/Purge.cls`: `Covered(ref)` seeds the Sent row in `Session(days)`; `SentRefs` removed in `OnAfterOneTest`; counts in the idle-session messages; new `TestNoActivityGoesRecentDeliveryKept`.
 - [x] `docs/security-overview.md:212` replaced verbatim; `docker/tests/test-release-sequence.sh` pins it (the Data section) and its control mutates it.
-- [x] Verification on lane D (warm e040): Test.Data.Purge green; lane-b@Data (26 classes) 5 of 5 green, 3 of them at host load 30-32; test-release-sequence 27/27 (overviewdoc with the purge-sentence control and the 90-days control, now expecting both problems because the approved sentences name 90 days); test-class-rules. A mutation without `Covered` is not deterministic (it needs a digest tick inside the test's second), so the isolation is pinned by the CI record rather than a forced red.
+- [x] Verification on lane D (warm e040): Test.Data.Purge green; lane-b@Data (26 classes) 5 of 5 green, 3 of them at host load 30-32; test-release-sequence 27/27 (overviewdoc with the purge-sentence control and the 90-days control, now expecting both problems because the approved sentences name 90 days); test-class-rules. Deterministic proof (the Planner's ruling): `TestDigestTickInsideThePurge` handles a digest Tick with a shadow `Test.Digest.ProcessProbe` (Only the test's session) inside the purge window: with the Sent row nothing is queued and the idle session is purged; without it one digest is queued (the old failure on demand). Mutation: the Sent row removed right after `Covered` -> the with-row assertion red (fresh throwaway e040n); green otherwise (Purge class, fresh e040p, 250 s under host load ~60).
 
 **Acceptance Criteria:** as epics.md Story 0.40.
 

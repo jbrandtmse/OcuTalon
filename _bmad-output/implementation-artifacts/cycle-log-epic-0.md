@@ -1088,3 +1088,4 @@
 2026-11-16T22:08:22Z	DW-1421	round4_addition	#9404->unexpected-field(ReplyCheck_row_8b;Payload_row_13;Capture) ledger=LOW_C2_item tests=ReplyCheck,Payload,Capture,Decide(warm_e0r4b,green) mutation=old_9404_words->ReplyCheck_rows_8,8b_red superseded_ci=43965489398,43965489389(cancelled)
 2026-11-17T03:01:08Z	Story 0.40	chartered	by=lead(Planner_GO;DW-1449_test_isolation) branch=OCT-epic0-dw1449(from_5f1996ed6) edits=Purge_test_isolation+counts+product_pin,security-overview+release-sequence_pin
 2026-11-17T03:11:15Z	Story 0.40	verified	Purge_green;Data_shard_5/5(3_under_load_30);test-release-sequence_27/27;class-rules
+2026-11-17T04:13:20Z	Story 0.40	proof_added	TestDigestTickInsideThePurge green(e040p) mutation(no_Sent_row)->red(e040n)
