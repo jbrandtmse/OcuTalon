@@ -67,7 +67,8 @@ trap 'rm -rf "$tmp"' EXIT
 # The only unchecked prepares of src/ (DW-17): Class:Method, one per line.
 ALLOW_UNCHECKED="OcuTalon.Data.Session:ForUser
 OcuTalon.Live.Event:Since
-OcuTalon.Data.Ownership:Rows"
+OcuTalon.Data.Ownership:Rows
+OcuTalon.Mcp.Service:OwnerOf"
 # The allow-list that the synthetic classes are judged by, so that the samples do not depend on the real list.
 SAMPLE_ALLOW="OcuTalon.Data.Session:ForUser
 OcuTalon.Live.Event:Since"
@@ -638,10 +639,10 @@ if [ "$samples_ok" -eq 1 ]; then
   )
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits" | head -n 10 | sed 's/^/  /'
-    echo "FAIL unchecked-prepare: only Session.ForUser, Live.Event.Since and Ownership.Rows prepare without the privilege check, and each allow-list entry matches a call"
+    echo "FAIL unchecked-prepare: only Session.ForUser, Live.Event.Since, Ownership.Rows and Mcp.Service.OwnerOf prepare without the privilege check, and each allow-list entry matches a call"
     fails=$((fails + 1))
   else
-    echo "PASS unchecked-prepare: only Session.ForUser, Live.Event.Since and Ownership.Rows prepare without the privilege check, and each allow-list entry matches a call"
+    echo "PASS unchecked-prepare: only Session.ForUser, Live.Event.Since, Ownership.Rows and Mcp.Service.OwnerOf prepare without the privilege check, and each allow-list entry matches a call"
   fi
 fi
 

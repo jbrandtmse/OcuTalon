@@ -9447,6 +9447,7 @@ So that I can check status and history from my own tools (step 7, Could).
 **When** they connect anonymously, with a wrong password, as a user without `OcuTalonMCPClient`, and as a user with it
 **Then** the first three are refused, and a user with the role can list and call the tools, which run as that IRIS user and return only that user's session's records, never a second user's (FR-51, AD-4, AD-24)
 **And** a guide says how to connect, and the server stays off on the online demo
+- DW-1459: OnAuthenticate's refusals (online demo, widened specification) and the real $Username and application role through the dispatcher or iris-mcp-server (ledger; routed by harvest 2026-11-16)
 
 ## Epic 29: The online demo's platform side
 
