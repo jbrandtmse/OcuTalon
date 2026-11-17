@@ -2,7 +2,7 @@
 title: 'Story 0.38: Telegram and email turns check the person''s role at use time, as web chat does'
 type: 'bugfix'
 created: '2026-11-17'
-status: 'ready-for-dev'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -89,6 +89,40 @@ On this base:
 - Given CI on this story's head, when it finishes, then every workflow is green.
 
 ## Spec Change Log
+
+- 2026-11-17 (lead). **Story 0.38 spec-gate rulings and the item-4 text, Contest Planner ~01:10Z Nov 17 (BINDING)**, quoted in full; to be applied in the build after 27.3 merges and feature is green:
+
+  > # Story 0.38 (DW-1284) spec-gate rulings (Contest Planner, ~01:10Z Nov 17). BINDING.
+  > 
+  > APPROVED. It is built AFTER 27.3 lands.
+  > 
+  > - **The predicate:** MayChat(irisUser) is RolesOf followed by Web.Public.Shell MayChat(roles). It is approved as the one shared rule.
+  > 
+  > 1. **Email check point: APPROVED.** The check is in Channel/Email/In.cls, BEFORE any Item is made.
+  >    - Correct AC1 to: "Telegram turns are checked where they reach Core.Conversation; email is checked in EmailIn before an Item is made".
+  > 2. **The not_user record: make ONE small channel-neutral class**, for example Channel.Refused, with reason and channel.
+  >    - All three channels (Slack, Telegram, email) use it for not_user.
+  >    - Slack's Ignored keeps its other reasons.
+  >    - Do NOT reuse a Slack-named class for Telegram and email.
+  > 3. **Pairing: badCode for not_user is APPROVED,** with no new text. The audit entry gives admins the real reason.
+  > 4. **Email mailbox save:** an admin-only user (one who fails MayChat) must NOT be able to save a mailbox whose email would then be refused.
+  >    - REFUSE the save at save time.
+  >    - This needs one new sentence. Send its text to the Planner FIRST.
+  >    - The Planner's suggestion: "This mailbox would belong to an OcuTalon user who can't use the chat, so its email would never be read. Nothing was changed."
+  > 5. **Smaller choices.** OK: a refused email is marked seen and not re-read; a refused pairing does not use up the code; the Telegram allowance entry is used.
+  >    - **A REFUSED TELEGRAM FILE: NOT OK to download first.**
+  >      - Check BEFORE downloading, so no content from a refused user is fetched or stored.
+  >      - If the check order makes that impossible: delete the file at once, never store or read it, and pin both behaviours.
+  > 
+  > **Release note (for later):** state it plainly as a fix: "a user without the chat role could start conversations through Telegram; now refused."
+  > 
+  > ## Item 4 text: APPROVED verbatim (Contest Planner, ~01:20Z Nov 17). BINDING.
+  > "This mailbox would be yours, but you can't use the chat, so its email would never be read. An admin who can use the chat must connect it. Nothing was changed."
+  > - It goes under Save in Settings › Channels › Email, as outcome not_user, refused before anything is written.
+  > - Pin the exact text.
+  > - Pin that nothing is written.
+
+  Orchestrator relay of item 4: the approved text, VERBATIM: "This mailbox would be yours, but you can't use the chat, so its email would never be read. An admin who can use the chat must connect it. Nothing was changed." It shows under Save in Settings › Channels › Email, outcome not_user, refused before anything is written; pin the exact text and pin that nothing is written. Item 2: whichever of 27.3 and 0.38 lands second moves Slack's not_user onto Channel.Refused.
 
 - 2026-11-17 (lead). Chartered by the orchestrator's Planner dispatch (~00:30Z Nov 17). The BINDING rulings, quoted from `<coordination>/prompts/story-273-rulings-20261116.md` (the 26.4 / DW-1284 section and the 27.3 Task 0 ruling):
 
