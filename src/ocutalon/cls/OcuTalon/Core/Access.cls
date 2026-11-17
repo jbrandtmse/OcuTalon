@@ -3,7 +3,8 @@
 ///   - RolesMayChat(roles) is web chat's own rule on a comma list of roles: the list holds OcuTalonUser, by its whole name. A viewer without it, OcuTalonAdmin alone, %All alone and
 ///     no role may not chat. Web.Api OnPreDispatch is web chat's gate, and Test.Web.ViewerApi pins this method to it on ten role sets;
 ///   - MayChat(irisUser) is the call of every channel: the user's recursed role set read by Bridge.Approval RolesOf (the one read of another user's roles), RolesMayChat on it, and
-///     then the account's state (Usable). It answers 1 only when all three hold. An empty or unknown user, a role set or an account that cannot be read, and any error answer 0.
+///     then the account's state (AccountUsable). It answers 1 only when all three hold. An empty or unknown user, a role set or an account that cannot be read, and any error answer 0;
+///   - AccountUsable(irisUser) is the account's state alone (Enabled, not past its ExpirationDate), for a caller that needs no chat role: the answer of an approval (DW-1482) asks it and no role.
 /// It runs in the caller's job. A production job runs as _Ensemble with %All, which is what reading another user's roles and the account's state needs; no role, grant or
 /// resource is added, and where the account cannot be read (a job without that privilege) it fails closed and answers 0. It names no class of the web packages: Core does not depend on them.
 /// It writes nothing and never throws.
@@ -27,12 +28,25 @@ ClassMethod MayChat(irisUser As %String = "") As %Boolean
 	Set may = 0
 	Try {
 		If $Get(irisUser) '= "" {
-			If ##class(OcuTalon.Bridge.Approval).RolesOf(irisUser, .roles) && ..RolesMayChat(roles) Set may = ..Usable(irisUser)
+			If ##class(OcuTalon.Bridge.Approval).RolesOf(irisUser, .roles) && ..RolesMayChat(roles) Set may = ..AccountUsable(irisUser)
 		}
 	} Catch exception {
 		Set may = 0
 	}
 	Quit may
+}
+
+/// 1 when the IRIS account is Enabled and not past its ExpirationDate (the last day the account may be used), through Usable, the one reader. An unknown account, an empty user, an account
+/// that cannot be read and any error answer 0. It never throws and writes nothing.
+ClassMethod AccountUsable(irisUser As %String = "") As %Boolean
+{
+	Set usable = 0
+	Try {
+		Set usable = ..Usable($Get(irisUser))
+	} Catch exception {
+		Set usable = 0
+	}
+	Quit usable
 }
 
 /// 1 when the IRIS account is Enabled and not past its ExpirationDate (the last day the account may be used): the one method of this class that switches namespace. It reads

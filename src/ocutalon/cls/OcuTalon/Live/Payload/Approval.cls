@@ -171,17 +171,26 @@ ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest, sessionRef As %
 	Quit payload
 }
 
-/// 1 when the IRIS user of the session of sessionRef may answer the request ref, as the approval API's MayAnswer says (the role check, Lane A), and in kind the approver kind that
-/// MayAnswer names (verbatim; empty when it names none). A session with no row or no IRIS user, a SessionRef that is no Ref and an error of the check give 0 and an empty kind.
-/// The user always comes from the session's row, never from the caller. It writes and fires nothing.
-ClassMethod Answerable(ref As %String, sessionRef As %String, Output kind As %String, api As %String = "OcuTalon.Bridge.Approval") As %Boolean
+/// 1 when the IRIS user of the session of sessionRef may answer the request ref: their account is usable now (Core.Access AccountUsable, Enabled and not past its ExpirationDate; DW-1482) and the approval API's
+/// MayAnswer says so (the role check, Lane A), and in kind the approver kind that MayAnswer names (verbatim; empty when it names none). An account that is not usable is 0 with an empty kind and unusable 1
+/// (and MayAnswer is not asked); no chat role is added to the rule, the request's RequiredRole is all it asks. A session with no row or no IRIS user, a SessionRef that is no Ref and an error of the check give 0 and an
+/// empty kind. The user always comes from the session's row, never from the caller. It writes and fires nothing. api is the approval API (a test seam): the real one is asked about the account of Core.Access,
+/// and a test double named here answers AccountUsable too, so that a fixture session of no real account keeps its results. The account of the job's own user ($Username, a web request's user, whom IRIS signed in with
+/// that account just now) is not read: a web job holds no privilege to read an account's state, so that the read would refuse every web answer.
+ClassMethod Answerable(ref As %String, sessionRef As %String, Output kind As %String, api As %String = "OcuTalon.Bridge.Approval", Output unusable As %Boolean) As %Boolean
 {
 	Set kind = ""
+	Set unusable = 0
 	Set may = 0
 	Try {
 		If '##class(OcuTalon.Bridge.Approval).IsRef($Get(sessionRef)) Quit
 		Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef)
 		If '$IsObject(session) || (session.IrisUser = "") Quit
+		Set access = $Select(api = "OcuTalon.Bridge.Approval": "OcuTalon.Core.Access", 1: api)
+		If ($ZConvert(session.IrisUser, "U") '= $ZConvert($Username, "U")) && '$ClassMethod(access, "AccountUsable", session.IrisUser) {
+			Set unusable = 1
+			Quit
+		}
 		Set may = ''$ClassMethod(api, "MayAnswer", $Get(ref), session.IrisUser, .kind)
 	} Catch {
 		Set may = 0

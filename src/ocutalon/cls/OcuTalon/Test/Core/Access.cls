@@ -5,6 +5,9 @@
 ///     name, and no role; Test.Web.ViewerApi TestMayChatIsTheRuleOfWebChat pins it to web chat's gate;
 ///   - TestAccountState: MayChat answers 1 for an enabled, unexpired account that holds OcuTalonUser (control) and for one that expires in 30 days, and 0 for a disabled one, one whose
 ///     ExpirationDate was yesterday or two days ago (and 1 for one that expires today, the last day it may be used), a viewer-only one, an admin-only one, an account that does not exist, and an empty user; and a call writes nothing to the account;
+///   - TestAccountUsable (DW-1482): AccountUsable, the account's state alone with no role asked, answers 1 for an enabled, unexpired account (also one that expires in 30 days, today, or never) and for a viewer-only one,
+///     and 0 for a disabled one, one past its expiry (yesterday, two days ago), an account that does not exist, an empty user and no argument, and writes nothing; and MayChat asks it (a probe whose AccountUsable
+///     answers 0 makes MayChat 0 for an account that would be allowed, after one call);
 ///   - TestNamespaceIsRestored: the read of the account runs in %SYS and the caller's namespace is its own again after the call, on the normal path and when the read throws;
 ///   - TestErrorInTheReadMayNotChat: an error inside the read answers 0 for an account that would be allowed, and does not throw;
 ///   - TestNoWebReference: the source of Core.Access, Core.Conversation, Channel.Email.In and Channel.Telegram.In, read from the class dictionary, names no OcuTalon.Web class, and the scan
@@ -87,6 +90,44 @@ Method TestAccountState()
 	Do $$$AssertEquals(##class(OcuTalon.Core.Access).MayChat(), 0, "and no argument may not chat")
 	Do $$$AssertTrue(##class(OcuTalon.Bridge.Approval).RolesOf(disabled, .roles) && (roles = "OcuTalonUser"), "control: the disabled account still holds OcuTalonUser (so it is the account state that refuses it)")
 	Do $$$AssertTrue(##class(OcuTalon.Bridge.Approval).RolesOf(expired, .roles) && (roles = "OcuTalonUser"), "and so does the expired one")
+}
+
+Method TestAccountUsable()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set access = "OcuTalon.Core.Access"
+	Set user = ..Account("au", "OcuTalonUser")
+	Set before = ..Properties(user)
+	Do $$$AssertEquals($ClassMethod(access, "AccountUsable", user), 1, "control: an enabled, unexpired account is usable")
+	Do $$$AssertEquals(..Properties(user), before, "asking writes nothing")
+	Set viewer = ..Account("auviewer", "OcuTalonViewer")
+	Do $$$AssertEquals($ClassMethod(access, "AccountUsable", viewer), 1, "a usable account is usable whatever its roles: no chat role is asked")
+	Set disabled = ..Account("audisabled", "OcuTalonUser")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "SetAccount", disabled, 0, ""), "the account is disabled")
+	Do $$$AssertEquals($ClassMethod(access, "AccountUsable", disabled), 0, "a disabled account is not usable")
+	Set expired = ..Account("auexpired", "OcuTalonUser")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "SetAccount", expired, 1, -2), "the account's ExpirationDate is two days ago")
+	Do $$$AssertEquals($ClassMethod(access, "AccountUsable", expired), 0, "an account past its expiry is not usable")
+	Set yesterday = ..Account("auyesterday", "OcuTalonUser")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "SetAccount", yesterday, 1, -1), "the account's ExpirationDate is yesterday")
+	Do $$$AssertEquals($ClassMethod(access, "AccountUsable", yesterday), 0, "an account whose ExpirationDate was yesterday is not usable")
+	Set today = ..Account("autoday", "OcuTalonUser")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "SetAccount", today, 1, 0), "the account's ExpirationDate is today")
+	Do $$$AssertEquals($ClassMethod(access, "AccountUsable", today), 1, "an account whose ExpirationDate is today is usable")
+	Set later = ..Account("aulater", "OcuTalonUser")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "SetAccount", later, 1, 30), "the account's ExpirationDate is in 30 days")
+	Do $$$AssertEquals($ClassMethod(access, "AccountUsable", later), 1, "an account that expires in 30 days is usable")
+	Set never = ..Account("aunever", "OcuTalonUser")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "SetAccount", never, 1, -2, 1), "the account never expires")
+	Do $$$AssertEquals($ClassMethod(access, "AccountUsable", never), 1, "an account that never expires is usable")
+	Do $$$AssertEquals($ClassMethod(access, "AccountUsable", user_"nobody"), 0, "an account that does not exist is not usable")
+	Do $$$AssertEquals($ClassMethod(access, "AccountUsable", ""), 0, "an empty user is not usable")
+	Do $$$AssertEquals($ClassMethod(access, "AccountUsable"), 0, "and no argument is not usable")
+	Do $$$AssertEquals($ClassMethod(access, "MayChat", user), 1, "control: MayChat of the usable account that holds OcuTalonUser is 1")
+	Set ^||AccessProbe("mode") = "account"
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.AccessProbe).MayChat(user), 0, "MayChat is 0 when AccountUsable is 0, for an account that would be allowed")
+	Do $$$AssertEquals($Get(^||AccessProbe("accountCalls")), 1, "after one call of AccountUsable: MayChat uses it")
+	Do $$$AssertEquals($Data(^||AccessProbe("namespace")), 0, "and the read of the account did not run")
 }
 
 Method TestNamespaceIsRestored()

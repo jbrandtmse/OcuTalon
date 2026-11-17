@@ -38,7 +38,8 @@ Include Ensemble
 ///   - A button press of a private chat (Story 12.7; AD-11, AD-32) is recorded like a message, and its data is split at the first ":" into
 ///     the action and the request's Ref. AnswersIn.FromTelegram(Ref, action, the chat row's Ref) is called synchronously with the chat's
 ///     Ref, never its id, and the press is then answered once with answerCallbackQuery {callback_query_id, text, show_alert}, the text
-///     being Catalog.Render for the channel telegram (the one render outside an *Out operation, AD-32) of the code it gave:
+///     being Catalog.Render for the channel telegram (the one render outside an *Out operation, AD-32) of the code it gave (an answer that AnswersIn refuses because the paired user's account is not usable, DW-1482,
+///     is not_allowed with {"account": true}: it is answered as every not_allowed is, and leaves one Channel.Refused {telegram, not_user} to Intake):
 ///       - approved: press.approved, or no text when the answer has no count slot (a request with no dry run); rejected: press.rejected;
 ///       - already_answered: answered.alreadyApproved, or answered.alreadyRejected when the winner rejected, and expired: answered.expired,
 ///         both with show_alert, as are not_paired and not_visible (press.notPairedChat) and unknown (press.unavailable);
@@ -47,8 +48,9 @@ Include Ensemble
 ///   - The Got it press (Story 17.6): the action gotit and the Ref of a tell-now notice (the Ref of its Decision). Msg.Command.GotIt {Ref, Channel
 ///     telegram, SessionRef} is submitted through Commands.Submit with origin telegram only when all of these hold: the chat row is paired (it has a
 ///     session), the Ref is a reference, the paired session has a telegram Delivery row for that Ref (Ownership.DeliveryByRef), and the chat of that row's
-///     message id is the pressing chat. Any other press submits nothing. Every Got it press is answered with answerCallbackQuery and no text, so the
-///     press adds no text of its own; a failed Submit is one warning.
+///     message id is the pressing chat, and the paired session's IRIS user's account is usable now (Core.Access AccountUsable, Enabled and not past its ExpirationDate; DW-1482). Any other press submits nothing;
+///     a press that fails only the account check leaves one Channel.Refused {telegram, not_user} to Intake (Refused) and nothing else is done: nothing is marked handled and nothing is resent. Every Got it press is
+///     answered with answerCallbackQuery and no text, so the press adds no text of its own; a failed Submit is one warning.
 ///     When that Delivery row is of the kind page (Story 23.4), the press submits Msg.Command.AckPage {Ref, Channel telegram, SessionRef} instead, under the same checks.
 ///   - A turn takes the steps of WebChatIn.Accept (AD-20, AD-26, AD-30) for the session that the chat was paired with when its row was
 ///     read: the session's row must exist (else one warning and nothing sent); Allowance.TryConsume is asked with the channel telegram.
@@ -423,28 +425,42 @@ Method Press(chatRef As %String, query As %DynamicObject) [ Private ]
 	Set code = "unknown", slots = {}
 	Set sc = $$$OK
 	Try {
-		Set sc = ##class(OcuTalon.Core.AnswersIn).FromTelegram(approvalRef, action, chatRef, .code, .slots)
+		Set sc = ..FromTelegram(approvalRef, action, chatRef, .code, .slots)
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
-	Set text = "", alert = 0
+	Set text = "", alert = 0, refused = 0
 	If $SYSTEM.Status.IsError(sc) {
 		$$$LOGWARNING(..#LOGPRESS_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
 	} Else {
+		Set refused = (code = "not_allowed") && +slots.%Get("account")
 		If code = "approved" Do ..FixSlots(chatRef, approvalRef, slots)
 		Set text = ..PressText(code, slots, .alert)
 	}
 	Do ..AnswerPress(query, text, alert)
+	If refused Do ..Refused()
+}
+
+/// The one call of AnswersIn FromTelegram. Private; a test subclass overrides it.
+Method FromTelegram(ref As %String, action As %String, chatRef As %String, Output code As %String, Output slots As %DynamicObject) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Core.AnswersIn).FromTelegram(ref, action, chatRef, .code, .slots)
 }
 
 /// Submits the Got it command of a press when the press is allowed (see the class comment): the chat is paired, the Ref is a reference, and the
-/// paired session's telegram Delivery row for the Ref belongs to the pressing chat. Any other press submits nothing.
+/// paired session's telegram Delivery row for the Ref belongs to the pressing chat and the session's IRIS user's account is usable (AccountUsable). Any other press submits nothing; one that fails
+/// only the account check leaves one Refused.
 Method GotIt(chatRef As %String, decisionRef As %String) [ Private ]
 {
 	Set chat = ##class(OcuTalon.Data.Pairing).Chat(chatRef)
 	If '$IsObject(chat) || (chat.SessionRef = "") || '##class(OcuTalon.Bridge.Approval).IsRef(decisionRef) || '##class(OcuTalon.Bridge.Approval).IsRef(chat.SessionRef) Quit
 	Set row = ##class(OcuTalon.Data.Ownership).DeliveryByRef(decisionRef, ..#CHANNEL, chat.SessionRef, .sc)
 	If $SYSTEM.Status.IsError(sc) || '$IsObject(row) || ($Piece(row.ChannelMessageId, ":", 1) '= chatRef) Quit
+	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(chat.SessionRef)
+	If '##class(OcuTalon.Core.Access).AccountUsable($Select($IsObject(session): session.IrisUser, 1: "")) {
+		Do ..Refused()
+		Quit
+	}
 	If row.Kind = ##class(OcuTalon.Watch.Paging).#KIND {
 		Set page = ##class(OcuTalon.Msg.Command.AckPage).%New()
 		Set page.Ref = decisionRef
@@ -895,7 +911,7 @@ Method MayChat(irisUser As %String) As %Boolean [ Private ]
 	Quit ##class(OcuTalon.Core.Access).MayChat($Get(irisUser))
 }
 
-/// The one record of a refused file: a Channel.Refused {telegram, not_user} sent to Intake, in a trace session of its own. A failed send is one fixed warning. Nothing else is done.
+/// The one record of a refused file or press (a user whose account is not usable): a Channel.Refused {telegram, not_user} sent to Intake, in a trace session of its own. A failed send is one fixed warning. Nothing else is done.
 Method Refused() [ Private ]
 {
 	Set refused = ##class(OcuTalon.Channel.Refused).%New()

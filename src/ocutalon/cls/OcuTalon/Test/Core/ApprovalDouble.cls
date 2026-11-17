@@ -74,6 +74,12 @@ ClassMethod MayAnswer(ref As %String, irisUser As %String, Output kind As %Strin
 	Quit 0
 }
 
+/// The double of the account check that Live.Payload.Approval Answerable asks of a test double named as its approval API (DW-1482): always 1, so that a fixture session of no real account keeps its results.
+ClassMethod AccountUsable(irisUser As %String) As %Boolean
+{
+	Quit 1
+}
+
 /// Scripts MayAnswer's answer for the request ref in the current run: result (1 or 0) and the kind it names.
 ClassMethod May(ref As %String, result As %Boolean, kind As %String = "")
 {

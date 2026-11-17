@@ -58,6 +58,40 @@ Property FailRefused As %Boolean [ InitialExpression = 0, Transient ];
 /// 1 when SendRefused is the product's own, whose send the probe's SendRequestAsync records.
 Property RealRefused As %Boolean [ InitialExpression = 0, Transient ];
 
+/// 1 when the press seams are the probe's (DW-1482): FromTelegram is Test.Core.AnswersAccountTelegramProbe's (the real role and account checks, the ApprovalDouble behind AnswerOps), Outcome records the
+/// command that a press would submit (target submit, the command's class and Ref) and submits nothing, and AnswerPress records the text and alert of the answer (target answer); every call is
+/// recorded under ^OcuTalonTest("TelegramInProbe", RunNumber, n). With 0 the three are the product's own.
+Property Account As %Boolean [ InitialExpression = 0, Transient ];
+
+/// A button press of a private chat (the update's callback_query object), with the chat row's Ref.
+Method RunPress(chatRef As %String, query As %DynamicObject)
+{
+	Do ..Press(chatRef, query)
+}
+
+Method FromTelegram(ref As %String, action As %String, chatRef As %String, Output code As %String, Output slots As %DynamicObject) As %Status [ Private ]
+{
+	If '..Account Quit ##super(ref, action, chatRef, .code, .slots)
+	Quit ##class(OcuTalon.Test.Core.AnswersAccountTelegramProbe).FromTelegram(ref, action, chatRef, .code, .slots)
+}
+
+Method Outcome(command As OcuTalon.Msg.Command, log As %String) As %String [ Private ]
+{
+	If '..Account Quit ##super(command, log)
+	Set call = ..Note("submit")
+	Set @call@("class") = $ClassName(command)
+	Set @call@("ref") = command.Ref
+	Quit ""
+}
+
+Method AnswerPress(query As %DynamicObject, text As %String, alert As %Boolean) [ Private ]
+{
+	If '..Account Do ##super(query, text, alert) Quit
+	Set call = ..Note("answer")
+	Set @call@("text") = text
+	Set @call@("alert") = alert
+}
+
 /// A paired chat's text as the session's turn.
 Method Run(sessionRef As %String, text As %String)
 {
