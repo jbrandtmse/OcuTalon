@@ -2,7 +2,7 @@
 title: 'Story 0.39: Browser-timing flakes wait for the page''s real readiness, and a turn at the UTC day rollover does not error'
 type: 'bugfix'
 created: '2026-11-16'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '0c09f1e5a52cff6722cc9f4151f070b0b556570b'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -231,6 +231,8 @@ Everything below was verified at `37b55fb8fbbca21a0709feadfbff4207bfb628e3` (fea
 - AC8: Given CI on this story's head, when it finishes, then every workflow is green.
 
 ## Spec Change Log
+
+- 2026-11-17 ~02:29Z, lead: pass A finalized at 8cc7a897f (groups 1-2 and the Task 3b pin). Spec re-opened (`in-progress`) for pass B1 = Task 0 (c) for group 5 (READ THE EXACT MOCK ERROR TEXT first), Tasks 10, 11, 12 (DW-1464), Task 8 (DW-1451) and AC4, AC6, plus the DW-1471 row if time allows. Pass B2 (after the quota hold) = Task 9 (DW-1450, row 6), AC5, DW-1472 (T1/T4/T5 counts), the 10-iteration counts still owed (AC7), P4 and T2 before-loops, and the full live units.
 
 - 2026-11-17, lead, Planner spec-gate ruling (`prompts/story-039-flakes-rulings-20261117.md`, APPROVED): gate 1 adopted (one logged, CI-counted retry plus the named-diagnosis wait) with a NEW pin, Task 3b / AC2b (a second retry at one site in one run is a failure); gate 2 follow-on ledgered LOW (DW-1468), and Chromium's own network namespace ledgered LOW (DW-1469); gate 3 no traces; gate 4 lane crossing approved for this spec's files only (mock.mjs, history.spec.ts, test-online-demo.sh, Test.Contract.Mock) and the AD-22 sentence written verbatim into the spine; Task 0 (c) for group 5 must READ THE EXACT MOCK ERROR TEXT from the repro before the mock fix lands. DW-1450's stop condition stands. DW-1464 drops to LOW once fixed. Implement runs in two saveable passes: pass A = Tasks 0 (a) and the group 1-2 parts of 0 (b)/(c), 1, 2, 3, 3b, 4, 5, 6, 7; pass B = Tasks 8-12 and their Task 0 parts.
 
