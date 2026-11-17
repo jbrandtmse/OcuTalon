@@ -4614,3 +4614,5 @@
 2026-11-17T01:15:22Z	Run	ci_green	feature b2768afeb ci=43982398541 att2 green (browser ci-20; DW-1464 day-rollover) hold_lifted
 2026-11-17T01:15:22Z	Epic 25	ci_green_verified	25.9 7a346a994 runs=43978832236,43978832285
 2026-11-17T01:15:22Z	Epic 25	merge_enqueued	25.9 head=7a346a994
+2026-11-17T01:17:24Z	Epic 25	merged	25.9 merge=05915a781
+2026-11-17T01:17:41Z	Epic 28	runner_reported	PUBLIC_TEXT 28.3(DW-1462_items1-4,DW-1461_overview_rows) built+gated,not_pushed relayed=contest_planner
