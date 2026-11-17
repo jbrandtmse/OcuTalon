@@ -8908,6 +8908,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: blind-hunter; Task 4 asks to confirm the counts; only T2 ran on the fixed tree in pass A
 - 2026-11-17T02:27:14Z status=open owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=harvest note=pass B checks T1/T4/T5 under the repro and with a full live demo-path run
 - 2026-11-17T08:40:28Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=pass_B2_c54bdf0c2:main-bundle-abort_repro:T1,T5,T4-refused_pass_with_one_RETRY
+- 2026-11-17T08:40:37Z occurrence=0.39-pass-B2 by=adjudication note=the_pairing-code_counts_are_unchanged_under_the_one_retry;no_test_change_needed
 
 ### DW-1479: flake candidate: web/e2e-online/busy.spec.ts:135 B1 reads the busy splash's focus once (document.activeElement?.id) right after the page's load, so the splash's autofocus may not have applied yet ('the error has the focus': expected ocu-error, received '')
 - source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: low | fix-risk: low | footprint: out-of-footprint
