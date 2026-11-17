@@ -3,7 +3,7 @@
 // - the RETRY line that retryLine prints is a line that ci/iris.sh's retry_lines counts, for every spec file of web/e2e and web/e2e-online;
 // - no bound of the shared helpers was raised (the story is test-only: the retry splits today's bound, it does not lengthen it);
 // - no story file names an absolute local path.
-// The modules are imported as they are, as state-wait.test.mjs does: erasable TypeScript with no relative import.
+// The modules are imported as they are, as state-wait.test.mjs does: erasable TypeScript. floor.ts has relative imports with no extension, so a resolve hook below gives them their .ts.
 // Run with: node --test web/scripts/retry-bounds.test.mjs
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -138,6 +138,8 @@ describe('a site retries once per run (Story 0.39, AC2b)', () => {
   const SAME_SITE = [STEP, RELOAD_STEP];
   let printed = [];
   let counter = 0;
+  /** The delays of the timers that the calls under test armed since the last tick. */
+  const armed = [];
 
   /** The running test sits at this line of a spec of web/e2e. */
   const at = (line) => {
@@ -228,6 +230,8 @@ describe('withOneReload fails a second retry at one site (Story 0.39, AC2b, thro
   const ACTION_MS = 20_000;
   let printed = [];
   let counter = 0;
+  /** The delays of the timers that the calls under test armed since the last tick. */
+  const armed = [];
 
   /** The running test sits at this line of a spec of web/e2e, in a project whose action and navigation waits are ACTION_MS. */
   const at = (line) => {
@@ -283,16 +287,24 @@ describe('withOneReload fails a second retry at one site (Story 0.39, AC2b, thro
       () => ({ failed: undefined }),
       (error) => ({ failed: error }),
     );
-    // The call arms its half-bound timer once the reload has returned: let the promises run, then let the half pass.
-    for (let turn = 0; turn < 5; turn += 1) await new Promise((resolve) => setImmediate(resolve));
+    // The call arms its half-bound timer once the reload has returned: wait for that timer, then let the half pass.
+    for (let turn = 0; turn < 1000 && !armed.includes(ACTION_MS / 2); turn += 1) await new Promise((resolve) => setImmediate(resolve));
+    assert.ok(armed.includes(ACTION_MS / 2), `the call armed its half-bound timer (timers armed: ${armed.join(', ')})`);
+    armed.length = 0;
     mock.timers.tick(ACTION_MS / 2);
     return outcome;
   }
 
   beforeEach(() => {
     printed = [];
+    armed.length = 0;
     console.log = (...args) => printed.push(args.join(' '));
     mock.timers.enable({ apis: ['setTimeout'] });
+    const mocked = globalThis.setTimeout;
+    globalThis.setTimeout = (handler, delay, ...rest) => {
+      armed.push(delay);
+      return mocked(handler, delay, ...rest);
+    };
   });
   afterEach(() => {
     mock.timers.reset();
@@ -313,6 +325,7 @@ describe('withOneReload fails a second retry at one site (Story 0.39, AC2b, thro
     assert.equal(first.failed, undefined, 'the first retry at the site reloads once and the reloaded page answers');
     assert.deepEqual(page.reloads.map((options) => options?.waitUntil), [undefined, 'commit'], 'the call reloaded, and the retry reloaded once');
 
+    const diagnosedAfterFirst = printed.filter((line) => line.startsWith('DIAG /state ')).length;
     const second = await stalled(page);
     assert.ok(second.failed instanceof Error, 'the second retry at the site fails');
     assert.equal(second.failed.message, `${site(711)} needed its one logged retry a second time in this run; a second retry is a failure (Story 0.39)`);
@@ -322,6 +335,7 @@ describe('withOneReload fails a second retry at one site (Story 0.39, AC2b, thro
     assert.equal(held.filter((line) => line === `RETRY ${site(711)} ${RELOAD_STEP}`).length, 2, 'both retries are in the unit\'s retry file, which ci/iris.sh counts');
     assert.ok(held.some((line) => line.startsWith('DIAG /state ')), 'the DIAG lines are kept');
     assert.equal(printed.filter((line) => line === `RETRY ${site(711)} ${RELOAD_STEP}`).length, 2);
+    assert.ok(printed.filter((line) => line.startsWith('DIAG /state ')).length > diagnosedAfterFirst, 'the second call printed its own page-side lines before it failed');
   });
 
   it('retries a reload at another site, whatever the first site used', async () => {

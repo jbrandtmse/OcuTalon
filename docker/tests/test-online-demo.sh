@@ -1177,20 +1177,42 @@ if [ "$busy_ok" = 1 ]; then
 
     # Row 6, one cap higher: the status is not busy, and a proxied sign-in is let in (the shell, a cookie and a counter row), so the
     # boundary is the status's own (OWNCONNECTIONS = 0, Task 0 (d)).
+    # The script that sets the cap is an iris process, and its licence connection is released a moment after it ends (DW-1450): the sign-in
+    # waits until the status itself (a plain HTTP GET, which takes no connection) reads not busy, then signs in once.
+    conn_before_s5=$(script_connections)
     set_cap "$cap_free" > /dev/null
     jar_s5="$tmp/jar.busy.s5"
     : > "$jar_s5"
-    conn_before_s5=$(script_connections)
-    online_signin "$jar_s5" "$addr_s5" "" > /dev/null
-    s5_outcome=$(page_outcome "$jar_s5.b")
-    s5_cookie=$(set_cookie_value "$jar_s5.h")
-    s5_epoch=$(jar_epoch "$jar_s5")
-    s5_counter=$(counter_rows "$addr_s5")
-    logout_all "$jar_s5" /ocutalon/
-    if [ "$s3_ok" = 1 ] && [ "$s5_outcome" = shell ] && [ -n "$s5_cookie" ] && [ "$s5_counter" = 1 ]; then
+    s5_last=
+    status_free() {
+      s5_last=$(status_read)
+      [ "$s5_last" = "false none 200" ]
+    }
+    s5_code=
+    s5_free_failed=
+    if wait_until 30 status_free; then
+      s5_code=$(online_signin "$jar_s5" "$addr_s5" "")
+    else
+      s5_free_failed="row 6: the status did not read free within 30 s after the cap was set to $cap_free (last '${s5_last:-<never read>}')"
+    fi
+    if [ -n "$s5_free_failed" ]; then
+      s5_outcome=none
+      s5_cookie=
+      s5_epoch=
+      s5_counter=0
+    else
+      s5_outcome=$(page_outcome "$jar_s5.b")
+      s5_cookie=$(set_cookie_value "$jar_s5.h")
+      s5_epoch=$(jar_epoch "$jar_s5")
+      s5_counter=$(counter_rows "$addr_s5")
+      logout_all "$jar_s5" /ocutalon/
+    fi
+    if [ -n "$s5_free_failed" ]; then
+      fail "$s5_free_failed (no sign-in was made; view $view_base, OWNCONNECTIONS $own, the script read ${conn_before_s3:-<unknown>} before S3 and ${conn_before_s5:-<unknown>} before S5)"
+    elif [ "$s3_ok" = 1 ] && [ "$s5_outcome" = shell ] && [ -n "$s5_cookie" ] && [ "$s5_counter" = 1 ]; then
       pass "row 6: the boundary is the status's own (the check leaves out no own connection, OWNCONNECTIONS = $own): refused with the status busy at the cap $cap_busy, and with the cap $cap_free a proxied sign-in is let in (the shell, a cookie, one counter row)"
     else
-      fail "row 6: the sign-in past the boundary was refused=$s3_ok, and with the cap at $cap_free a proxied sign-in gave '$s5_outcome' with cookie '${s5_cookie:+set}' and $s5_counter counter row(s) (view $view_base, OWNCONNECTIONS $own, the script read ${conn_before_s3:-<unknown>} before S3 and ${conn_before_s5:-<unknown>} before S5)"
+      fail "row 6: the sign-in past the boundary was refused=$s3_ok, and with the cap at $cap_free a proxied sign-in gave '$s5_outcome' with cookie '${s5_cookie:+set}' and $s5_counter counter row(s) (view $view_base, OWNCONNECTIONS $own, the script read ${conn_before_s3:-<unknown>} before S3 and ${conn_before_s5:-<unknown>} before S5; the S5 POST gave status '${s5_code:-<none>}', busy page '$(busy_page "$jar_s5.b")')"
     fi
     if [ "${s3_ok:-0}" = 1 ] && [ "$s5_outcome" = shell ]; then
       own_reading="so a new session holds no connection when OnLogin runs"

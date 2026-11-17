@@ -2,8 +2,8 @@
 title: 'Story 0.39: Browser-timing flakes wait for the page''s real readiness, and a turn at the UTC day rollover does not error'
 type: 'bugfix'
 created: '2026-11-16'
-status: 'in-progress'
-baseline_revision: '1c030299bbefdb42ab9b57f447b6522b808b502b'
+status: 'done'
+baseline_revision: '2386d9553af20f7df5f25dfe705f3a79589e2619'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -23,6 +23,13 @@ deferred:
     location: >-
       web/e2e/demo-path/telegram-page.spec.ts:577-640
     severity: medium (unverified)
+  - summary: >-
+      B1 reads the busy splash's focus once (`document.activeElement?.id`) right after the page's load, so the splash's `autofocus` may not have applied yet.
+    evidence: |-
+      One failure in the full live online-demo run of pass B2 ("the error has the focus": expected ocu-error, received ''), green in the re-run and in a run before it; the file is not part of this story.
+    location: >-
+      web/e2e-online/busy.spec.ts:135
+    severity: medium
 ---
 
 <intent-contract>
@@ -280,6 +287,24 @@ Everything below was verified at `37b55fb8fbbca21a0709feadfbff4207bfb628e3` (fea
   - `[low]` `reject` `TestMidnightReminderPicksItsPrompt` uses local times, so it equals the UTC rollover only under UTC (edge-case, intent-alignment) - decided in-stage and recorded in the pass B1 results; the CI hosts run UTC.
   - Intent-alignment layer: descriptive; the diff implements the mock-rule reading at the mock's HTTP surface and the IRIS test at `Agent.Input.Render` plus `%AI.Agent`; the browser-surface evidence for MC3 is the owed live loop (pass B2).
 
+### 2026-11-17 - Review pass (pass B2)
+- verdicts: 13 findings (rows) from the layers' 21 reported claims, one row per claim (the same claim from several layers shares a row) - high 0, medium 2, low 10, false 1, maybe-false 0
+- findings:
+  - `[low]` `patch` The header comment of `retry-bounds.test.mjs` said the modules have no relative import (blind-hunter) - it now says why the resolve hook is there.
+  - `[medium]` `patch` `stalled()` ticked the half bound after a guessed five turns, with no signal that the timer was armed (blind-hunter, verification-gap) - it now waits until a timer of the half bound has been armed (bounded, named assertion). mutation: `if (firstMs === undefined) return asked;` made unconditional in `withOneReload` -> the two through-`reloadSettled` rows red with `the call armed its half-bound timer`, not a hang; reverted, `cmp` identical.
+  - `[medium]` `patch` The `printDiagnosis` before `throw usedUp` was not pinned; the DIAG assertion read the first retry's lines (verification-gap) - row 1 counts the printed `DIAG /state` lines after the first call and asserts that the second call adds its own. mutation: `printDiagnosis` moved below `if (usedUp) throw usedUp;` -> row 1 red (`the second call printed its own page-side lines`); reverted, `cmp` identical.
+  - `[low]` `patch` The failed wait named `(last '<a fresh status_read>')`, a reading later than the failing one, and a skipped sign-in still read a jar never written and printed `gave 'other'` in the MEASURED line (blind-hunter, edge-case x3) - `status_free` keeps its own reading (`<never read>` when the run deadline ended the wait first), and the jar reads are skipped (`none`). mutation: `status_free` made to never read free with `wait_until 6` -> the unit's only failed check is `row 6: the status did not read free within 30 s ... (last 'false none 200') (no sign-in was made ...)`, the MEASURED line reads `gave 'none'`; reverted, `cmp` identical.
+  - `[low]` `reject` Row 6's message says "30 s" when the run deadline ended the wait (blind-hunter, edge-case, verification-gap) - the text is the spec's (Task 9); the patch above adds `<never read>` for that case.
+  - `[low]` `reject` `wait_until` counts only its sleeps, so a stalled status GET stretches 30 s (edge-case) - the status GET is local and `curl --max-time 30` bounds each; the run deadline bounds the loop.
+  - `[low]` `reject` `conn_before_s5` is now read before the cap is set, so the message's "before S5" is early (blind-hunter) - Task 9 says to read it before `set_cap`.
+  - `[low]` `reject` Still refused after free has no product-fault marker in the script (edge-case, intent-alignment) - the stop is this stage's rule, not a script behaviour; the fail line names the POST status and the busy page.
+  - `[low]` `reject` The resolve hook is never deregistered, skips extensionless names with a dot, and falls through with a bare error (blind-hunter, edge-case) - the test file runs in its own process and the hook only maps floor.ts's own imports.
+  - `[low]` `reject` No row for a second retry that starts at `loadedAfter` and ends at `reloadSettled`, or for a bound too small to retry (blind-hunter) - the shared-site budget across both is pinned by the pass-A AC2b rows; the small-bound case is the pass-A bound rows.
+  - `[low]` `reject` The fake `test.info` has a dead `timeout` field (verification-gap) - cosmetic.
+  - `[false]` `reject` AC2b's `mutation:` line names a row that does not exist (verification-gap) - the line is in the intent block's AC text; the through-`reloadSettled` mutation is recorded in the pass B2 results, and a finding whose fix edits the spec is not triaged.
+  - `[low]` `reject` The row-6 fix is verified only by a live hold that is not committed (verification-gap) - Decision 4 of the spec: the hold is a scratch edit.
+  - Intent-alignment layer: descriptive; the diff implements the status-wait reading for Task 9 at the script surface and a helper-level fake page for DW-1471; the live evidence (hold repro, loops, full units) is recorded in `## Verification`.
+
 ## Design Notes
 
 **The tally** (runs, runners and hosts from the 2026-11-16/17 tally; heads from `gh run view`):
@@ -453,6 +478,23 @@ i=0; while [ "$i" -lt "${E0FL_BURN:-0}" ]; do i=$((i+1)); sh -c 'while :; do :; 
 - Task 9 (`docker/tests/test-online-demo.sh` row 6): `conn_before_s5` is read before `set_cap "$cap_free"`; `status_free` (`status_read` = `false none 200`) is waited on with `wait_until 30`; not free in 30 s fails with `row 6: the status did not read free within 30 s after the cap was set to <cap> (last '<reading>')` and skips the sign-in; free, it signs in once; the fail line adds the POST status and `busy_page`. `page_outcome` and every pass condition are unchanged. `bash -n` ok; no stack run (AC5's hold repro and the loops are the lead's).
 - Node: `npm --prefix web run lint` exit 0; `npm --prefix web test` 2216 passed, 0 failed.
 
+**Pass B2 results (lead, stack runs, 2026-11-17, lane A throwaways tags `e0flr1` to `e0flr4`; counts only):**
+- Task 9 was NOT in the tree after the stopped attempt (the handoff text above had claimed it); the B2 re-run wrote it. AC5, scratch hold (a background `iris session` holding one connection for 6 s, started right after `set_cap "$cap_free"`, the status read busy first), swapped in for one `live online-demo` run each and restored byte for byte (`cmp`, `git status --short` as before): old row (`git show HEAD:` text, sign-in at once): 10 of 10 loop iterations red (POST 200, outcome `other`, no cookie, 0 counter rows) and the unit's own row 6 red with the same signature (`'other'`, cookie '', 0 counter row(s)), its only failed check; fixed row: 10 of 10 iterations green (the 30 s wait, then POST 303, `shell`, cookie set, 1 counter row) and the unit's own row 6 green, all checks passed. mutation: that hold -> old row red / fixed row green. The STOP condition did not fire (the fixed row was never refused after the status read free).
+- DW-1472 (main-bundle abort once, `connectionreset`, just before the reload under test, scratch, restored `cmp` identical): T1 green with one RETRY (`:238`), T5 green with one RETRY (`:694`), T4's first loop case (`refused`, expects exactly one code request) green with one RETRY (`:542`, 1 passed). The retry does not change the counts: the stalled first document never starts its app, so it asks for no code, and only the retried document asks. No test change. T4's last site (`madeUp` `failed`, about 25 s of the 45 s test timeout left) has no time for a retry under a stall: the helper fails with its named bound error and no RETRY line, as the old bare reload failed there too; no timeout is raised. Injecting all three T4 sites in one run is red the same way (the retry budget of one test line). T4's middle site (`paired, no bot name`, expects no code request) was not run: an app that never started asks for none.
+- AC7 (16 host burners = `hw.ncpu` beside each unit's stack; old = the nine `web/e2e` files of the story swapped for their `0c09f1e5a` text for one call, restored byte for byte, `git status --short web` empty after each; pass-A loops of 3 to 5 iterations are extra):
+
+  | Tests (unit) | Before: iterations, passed, failed | After: iterations, passed, failed |
+  |---|---|---|
+  | H2, H3, H7, U12 (sign-in) | 10, 40, 0 | 10, 40, 0 |
+  | Q7, HC8, MC3 (sign-in-3) | 10, 30, 0 | 10, 30, 0 |
+  | T2 (demo-path) | 10, 10, 0 | 10, 10, 0 |
+  | P4 (floor) | 10, 10, 0 | 10, 10, 0 |
+
+  The local rate was about 0 before (Design Notes, Rule 5 note); the deterministic repros carry the red. No RETRY line in any loop.
+- Full live runs, no shim, 0 RETRY lines in each: `live demo-path` all checks passed (8 of 8 steps, floor 15 of 15); `live sign-in --part 1/2` 174 passed; `live sign-in --part 2/2` (holds `history.spec.ts` and `usage.spec.ts`) 171 passed; `live sign-in-3` 188 passed; `live floor` 110 passed; `live online-demo` first run 1 failed (`e2e-online/busy.spec.ts:83` B1 read `document.activeElement` once right after `goto` and got '', unrelated to this story's files; deferred), the re-run all checks passed. Teardown of the four tags: 0 projects, containers, volumes, networks left; shim and burners removed.
+- DW-1471: the committed row was reviewed and is right (its mutation is recorded above); `npm --prefix web run lint` exit 0 and `npm --prefix web test` 2216 passed after Task 9.
+- Review patches (pass B2), re-verified: `bash -n` ok; lint exit 0; `npm --prefix web test` 2216 passed; `retry-bounds.test.mjs` 21 of 21; mutations as in the triage log (the DIAG print moved below the throw -> row 1 red; the retry timer never armed -> the two through-`reloadSettled` rows red with a named assertion; `status_free` never free -> the named failure line, the one failed check), each reverted with `cmp` identical. The patched script: `live online-demo` all checks passed (final clean run, row 6 PASS), tags `e0flr5` and `e0flr6` torn down (0 left); 0 containers, burners and locks left.
+
 **Shared surfaces:**
 - `web/e2e/support/navigate.ts` `gotoSettled`: every sign-in and trace site, and the NAV line format.
 - `web/e2e/support/floor.ts` `loadedAfter` / `reloadSettled`: every `loadedAfter` caller, and the RETRY step labels counted by `ci/iris.sh`.
@@ -470,14 +512,9 @@ i=0; while [ "$i" -lt "${E0FL_BURN:-0}" ]; do i=$((i+1)); sh -c 'while :; do :; 
 Status: done
 Blocking condition: none
 
-Pass B1 (this pass). Pass B2 is NOT started: Task 9 (row 6, `docker/tests/test-online-demo.sh`), AC5, DW-1472 (T1/T4/T5 counts), the owed AC7 10-iteration counts, P4 and T2 before/after loops, the live MC3 `sign-in-3` loop, the live 3b two-retries repro and the full live units. DW-1471's row was not done (time box).
-
-Implemented: the CI mock breaks a guide-prompt tie by ignoring `> ` lines (exactly one remaining match selects it, else 500; the exact error before the fix was `CI mock: two guide prompts match: guide-reminder and guide-watch`); node rows K1-K3; `Test.Contract.Mock.TestMidnightReminderPicksItsPrompt` (23:59:59 and 00:00:01, through `%AI.Agent` on the `chat` key); MC3's `answerOf`/`handled` end tracker (finished or failed, bounded by the action wait, the answered request included).
-
-Files: `ci/mock/mock.mjs`, `ci/mock/test/server.test.mjs`, `src/ocutalon/cls/OcuTalon/Test/Contract/Mock.cls`, `web/e2e/memory-card.spec.ts`.
-
-Review: 4 layers; patches applied 5 (two medium: the held-request body wait and the AC4 end assertion; three low); no high; the rest rejected with reasons in the triage log; nothing deferred. followup_review_recommended false (no high patched).
-
-Verification: K1 old mock red 10 of 10, new green 10 of 10; the IRIS class run `OcuTalon.Test.Contract.Mock` passed, and red with the tie-break removed; AC4 scratch repro old hung, new green, mutation red; lint exit 0; node tests 2214 passed; mock tests 193 passed.
-
-Residual risks: the live MC3 loop is owed; the Task 8 counts are of a scratch repro; the Contract.Mock test uses local-zone times (equal to the spec's UTC times under UTC).
+Pass B2 (this pass covers only the open items):
+- Implemented: Task 9 (DW-1450) in `docker/tests/test-online-demo.sh` row 6: `conn_before_s5` before `set_cap`, a wait on the public status reading free (`wait_until 30`, first check at once), one sign-in, a named failure that skips the sign-in, and the S5 POST status and busy page in the fail line; `page_outcome` and every pass condition unchanged. DW-1471: the node row in `web/scripts/retry-bounds.test.mjs` that drives two retries at one site through `reloadSettled`, hence `withOneReload`, reviewed and kept; its stall wait now waits on the armed timer and it pins the second call's own DIAG lines. DW-1472: confirmed with the bundle-abort repro that the one logged retry does not change the pairing-code counts of T1, T5 and T4's refused case; no test change. No checkbox exists in the Tasks list, so none was ticked.
+- Files: `docker/tests/test-online-demo.sh`, `web/scripts/retry-bounds.test.mjs`, this spec.
+- Review: 4 layers; patches applied 4 (two medium, two low); nothing new deferred except the unrelated B1 splash-focus read in `web/e2e-online/busy.spec.ts:135` (frontmatter `deferred`); the two pass-A deferrals (DW-1471, DW-1472) are resolved by this pass; the rest rejected with reasons in the triage log. followup_review_recommended false (no high patched).
+- Verification: AC5 row 6 hold repro old red 10 of 10 (and the unit's own row 6 red), fixed green 10 of 10 (row 6 green); AC7 loops before and after, 10 iterations each, all passed (H2/H3/H7/U12 40/40 and 40/40, Q7/HC8/MC3 30/30 and 30/30, T2 10/10 and 10/10, P4 10/10 and 10/10) beside 16 burners; full live units: demo-path, sign-in parts 1/2 and 2/2, sign-in-3, floor and online-demo all passed (online-demo once after a one-off B1 focus-read failure outside this story); lint exit 0, node tests 2216 passed.
+- Residual risks: the local flake rate was about 0 before the fix, so the loops show no regression rather than a cured rate; T4's last reload site has no time for a retry under a stall within the 45 s test timeout (no timeout was raised); the splash-focus read in B1 can fail in CI.
