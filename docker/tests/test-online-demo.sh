@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Live test of the online demo's real start (Story 16.1; AD-13, AD-19, AD-23, AD-24, AD-25): builds the image and starts it in one
 # throwaway compose project with the online-demo flag on and test start values, and checks, in this order:
-#   - the start (rows 1 to 3): the log's STEP lines are the expected run (Bridge.Installer, Public, Roles, Users, Web, ... Ready), every step
+#   - the start (rows 1 to 3): the log's STEP lines are the expected run (Bridge.Installer, Public, Mcp, Roles, Users, Web, ... Ready), every step
 #     OK, RESULT OK and readiness 1; each of the 14 public keys reads back as its start value through Public.Settings and through
 #     Setting.Get (a password is compared inside IRIS and printed as 1 or 0); /ocutalon/public/status reports the next reset that NextReset
 #     computes, on a 4-hour step of the anchor, with busy false and the last reset as given; Decide's three budget rows;
@@ -476,6 +476,17 @@ check_session "row 11: the /ocutalon* applications in IRIS are exactly the five"
 check_session "row 11 (Story 35.3): the role OcuTalonWebhook does not exist on the online demo" %SYS \
   "CHK|webhook-role|0" \
   'Write !,"CHK|webhook-role|",##class(Security.Roles).Exists("OcuTalonWebhook")' \
+  'Halt'
+# Story 28.3 (QA, DW-1460): the online demo has no MCP server. The application /mcp/ocutalon, its resource OcuTalon_MCPServer and the roles
+# OcuTalonMCPApp and OcuTalonMCPClient do not exist after the start (the Mcp step creates none of them there), each read from the security tables.
+check_session "row 11 (Story 28.3): /mcp/ocutalon, OcuTalon_MCPServer, OcuTalonMCPApp and OcuTalonMCPClient do not exist on the online demo" %SYS \
+  "CHK|mcp-app|0
+CHK|mcp-resource|0
+CHK|mcp-role|OcuTalonMCPApp|0
+CHK|mcp-role|OcuTalonMCPClient|0" \
+  'Write !,"CHK|mcp-app|",##class(Security.Applications).Exists("/mcp/ocutalon")' \
+  'Write !,"CHK|mcp-resource|",##class(Security.Resources).Exists("OcuTalon_MCPServer")' \
+  'For r="OcuTalonMCPApp","OcuTalonMCPClient" { Write !,"CHK|mcp-role|",r,"|",##class(Security.Roles).Exists(r) }' \
   'Halt'
 hook_headers() {
   printf '%s\n' 'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) c FROM Ens.MessageHeader WHERE SourceConfigName=?","WebhookIn") Do rs.%Next() Write !,"CHK|hookheaders|",rs.%Get("c")' 'Halt' | session_value OCUTALON hookheaders

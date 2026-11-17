@@ -3661,7 +3661,7 @@ case "$*" in
           *)
             printf 'CHK|started|1\nCHK|decisions|3|1|2|3|4\nCHK|reason|invalid|3\nCHK|rule|fix-summary-not-for-category|fixSummary|2\nCHK|rule|confidence-missing|confidence|1\n'
             if [ -n "${RCF_CAPMARK:-}" ]; then printf 'CHK|rule|zz-planted|%s|1\n' "$RCF_CAPMARK"; fi
-            printf 'CHK|case|zz-case|fix-summary-not-for-category|2\nCHK|file|1-aaa-1.json\nCHK|file|2-bbb-1.json\nCHK|file|3-ccc-1.json\nCHK|file|summary.json\nCHK|run|1\n'
+            printf 'CHK|case|zz-case|fix-summary-not-for-category|2\nCHK|file|1-aaa-1.json\nCHK|file|2-bbb-1.json\nCHK|file|3-ccc-1.json\nCHK|file|summary.json\nCHK|accepted|tellnow|2\nCHK|run|1\n'
             ;;
         esac
         ;;
@@ -4293,6 +4293,7 @@ check_capture() {
     ! grep -qx 'CAPTURE rule fix-summary-not-for-category field fixSummary: 2' "$dir/out.log" ||
     ! grep -qx 'CAPTURE rule zz-planted field (withheld): 1' "$dir/out.log" ||
     ! grep -qx 'CAPTURE case zz-case rule fix-summary-not-for-category: 2' "$dir/out.log" ||
+    ! grep -qx 'CAPTURE accepted-without-confidence outcome tellnow: 2' "$dir/out.log" ||
     ! grep -qx "CAPTURE folder $evidence" "$dir/out.log"; then
     echo "eval/run.sh: the CAPTURE lines are not the counts, the rule names, (withheld) for an unsafe field and the folder"
   fi

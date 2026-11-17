@@ -416,7 +416,8 @@ Method NewUser(suffix As %String, roles As %String, fullName As %String = "OcuTa
 	Quit user
 }
 
-ClassMethod CreateUser(user As %String, roles As %String, fullName As %String = "OcuTalon test fixture") As %Status
+/// Creates the fixture user with the roles (a comma list) and a random password, which is given back in password for a test that signs in over HTTP.
+ClassMethod CreateUser(user As %String, roles As %String, fullName As %String = "OcuTalon test fixture", Output password As %String) As %Status
 {
 	New $Namespace
 	Set $Namespace = "%SYS"
