@@ -8897,3 +8897,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: feature ci 43957453035 (854346fa1, the 27.1 merge) iris (shards-5) on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: web/e2e/guide/guide.spec.ts
 - evidence: the same group passed on 27.1's branch run 43938844259; 27.1 touches Web/Hook.cls, not the guide's page or spec; Q7 depends on the page's clock
 - 2026-11-16T22:01:47Z status=open owner=burndown by=orchestrator note=flake rule: one rerun of the failed job; occurrence 1; a repeat makes it a cause-and-fix item
+
+### DW-1465: A linked chat user whose IRIS account is disabled or expired may still get Slack turns: Core.Conversation.MayChat reads only the recursed role set (web chat's role rule), not the account state, while web chat refuses such a sign-in
+- source: spec-27-3-link-slack-members-in-settings.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: rework-1 edge review, unverified; settle with a fixture user Enabled=0 and a Slack Item for its session; the same gap applies to every channel that later calls MayChat (Story 0.38, DW-1284)
+- 2026-11-17T00:56:23Z status=escalated owner=burndown by=harvest note=for_the_Planner:extend_MayChat(irisUser)_with_account_state_(Enabled,expiry)_in_27.3_or_in_0.38?
