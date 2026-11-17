@@ -141,6 +141,8 @@ All classes under `src/ocutalon/cls/OcuTalon/`. Lane B unless marked.
 
 ## Spec Change Log
 
+- 2026-11-17, lead: the first implement pass was stopped at the quota hold during its review-patch phase (its last action: "apply patch 1 (decoded-blank guard) and test"); its tree is in WIP commits ac2b64c08 and f430a1c20 on OCT-epic27. Re-dispatched at `status: in-review` with `baseline_revision` af5d40d6c (the story's pre-implement head) so the review covers the whole story code. Re-verify patch 1 (an inbound Slack text that is empty after `Markup.Plain` decoding must be Ignored as blank, never become an empty turn) and finish any partial edit; the earlier review findings are not recorded here, so the review layers run again.
+
 - 2026-11-17 ~03:05Z, lead: Contest Planner gate rulings (1)-(5) applied (binding block in Boundaries & Constraints); epics.md AC 4 amended per ruling (4). Build after the account switch if the quota hold comes first.
 
 ## Review Triage Log
