@@ -4,7 +4,7 @@
 
 ## Goal
 
-Make Slack a working OcuTalon channel without socket mode (the platform's WebSocket client fails right after opening). Slack's Events API posts to a route under `/ocutalon/hook`. A direct message from a linked Slack member becomes a normal user turn: it gets an attention decision, shows in the web chat "via Slack" and is traced end to end. The reply goes back to Slack through `chat.postMessage`. It runs in Lane B's files, and each spec gate goes to the Contest Planner before building. Slack stays off on the online demo. Until the 1.0.12 merge-back, stories build and run CI on `OCT-epic27`. Stories 27.1 (route, `SlackIn`, link table) and 27.3 (admin linking in Settings, the approved texts, and a rework so that a Slack turn needs a user who may chat) are delivered. Story 27.2 (replies) is last.
+Make Slack a working OcuTalon channel without socket mode (the platform's WebSocket client fails right after opening). Slack's Events API posts to a route under `/ocutalon/hook`. A direct message from a linked Slack member becomes a normal user turn: it gets an attention decision, shows in the web chat "via Slack" and is traced end to end. The reply goes back to Slack through `chat.postMessage`. It runs in Lane B's files, and each spec gate goes to the Contest Planner before building. Slack stays off on the online demo. Until the 1.0.12 merge-back, stories build and run CI on `OCT-epic27`. Stories 27.1 (route, `SlackIn`, link table) and 27.3 (admin linking in Settings, the approved texts, and a rework so that a Slack turn needs a user who may chat) are delivered. Story 27.2 (replies) is last, and the Planner has approved its gate (rulings 1–5).
 
 ## Stories
 
@@ -30,11 +30,17 @@ Make Slack a working OcuTalon channel without socket mode (the platform's WebSoc
   - On a rate limit, wait the time Slack gives before retrying. A failure goes to Visual Trace with a plain reason, and the token is never logged.
   - No Slack code opens a WebSocket or uses socket mode, and CI proves it.
   - Tests run against a Slack mock in CI's mock service, with scenarios under `ci/mock/scenarios/B/`. Nothing calls slack.com.
-  - A plain-English developer section covers creating the app, subscribing events on a public HTTPS address, the environment variables and linking a member. It claims nothing the release doesn't ship.
+  - `GUIDE.md` › Slack, linked from the README, gives a plain-English developer section: creating the app, subscribing events on a public HTTPS address, the environment variables and linking a member. It claims nothing the release doesn't ship.
+- **27.2 gate rulings (Contest Planner, binding):**
+  - (1) Step 1 (`im:history`, `chat:write`) and SlackOut's 8 Visual Trace texts are approved verbatim. Condition: each `{reason}`/`{status}`/`{code}` slot holds only a fixed reason word or Slack's error code, never an id, message text or token (pinned by the token-strip test).
+  - (2) Only `chat.postMessage`, to the linked member of an accepted turn, once per part. `mrkdwn`/unfurls are off, `&<>` escaped, parts ≤ 4,000 characters, `Retry-After` ≤ 30 s, ≤ 5 tries, and no sent part resent. The token is header only and stripped from errors, and `Delivery` holds `Ref:ts` only. On the demo both `Notify` and `SlackOut` refuse (pinned). Also approved: the no-socket-mode rule, the mock's Slack side and scenarios, and zero posts for a refused turn, pinned in `live:slack-hook`.
+  - (3) Decode inbound markup, with no A/B. Tests pin the decode table (entities, mentions, links, channel references).
+  - (4) The developer section is `GUIDE.md` › Slack, and no README sentence is added.
+  - (5) Approved spine edits: AD-14, AD-19, AD-22, AD-32, and the Deferred row moved out. If AD-22 overlaps Story 0.39, whichever lands second rebases.
 - **27.2's own duties:**
-  - Setup step 1 gains `chat:write` in the same commit as the reply code. Step 1 is approved public text (R12), so the new wording is a Planner gate item. It sits word for word in three places: `GUIDE.md` `## Slack`, `EXPERIENCE.md` Later Steps › Step 7 (a planning artifact, so editing it stales this context), and `web/scripts/slack-setup-steps.test.mjs`. That test's step text and its two "names no chat:write" cases must flip.
-  - `Msg/Catalog.cls` `CHANNELS` (`web,phone,mailbox,telegram,email`) refuses `slack` today. Raise it at the gate. `Test.Msg.Catalog.TestEveryKeyOnEveryChannel` pins the refused set `webhook,slack,system,heartbeat` and the channel loop. `CHANNELNAMES` (for `channel` slots) has no `slack` either.
-- **Residual from 27.1/27.3:** Slack's `&amp;`/`&lt;`/`&gt;` escapes and `<@U…>` mention markup reach the turn text unchanged. 27.3 left the decision to 27.2: decode them, or record why not.
+  - Setup step 1 gains `chat:write` in the same commit as the reply code, word for word in three places: `GUIDE.md` `## Slack`, `EXPERIENCE.md` Later Steps › Step 7 (a planning artifact, so editing it stales this context), and `web/scripts/slack-setup-steps.test.mjs`. That test's step text and its two "names no chat:write" cases flip.
+  - `Msg/Catalog.cls` `CHANNELS` (`web,phone,mailbox,telegram,email`) gains `slack` (AD-32, ruling 5). `Test.Msg.Catalog.TestEveryKeyOnEveryChannel`'s refused set (`webhook,slack,system,heartbeat`) and channel loop change with it. `CHANNELNAMES` (for `channel` slots) has no `slack`.
+- **Residual from 27.1/27.3:** `&amp;`/`&lt;`/`&gt;` and `<@U…>` markup still reach the turn text; decode them (ruling 3).
 - **Ledger:**
   - DW-1454: a second workspace's signed event overwrites the noted one. By design under the one-workspace ruling.
   - DW-1284, DW-1465 (`MayChat` ignores a disabled or expired account) and DW-1466 (no Core-to-Web reference in the spine) went to lane D's Story 0.38. It extends `MayChat`, moves the predicate into Core and moves `not_user` to a channel-neutral `Channel.Refused`. Keep 27.2 out of `Conversation`'s gate and build nothing on that record.
@@ -45,7 +51,7 @@ Make Slack a working OcuTalon channel without socket mode (the platform's WebSoc
   - the production-item row `SlackIn`/`SlackOut` (Lane B);
   - the AD-19 endpoint override `OCUTALON_SLACK_API_BASE`, "read only by `SlackOut`";
   - AD-14's Slack bullets (with the DW-1442 fixes and the `not_user` sentence), AD-1's three admin verbs, the Tables paragraph and the REST rows.
-  27.2 must add: the `Notify` routing for Slack replies in AD-14, `SlackOut`'s behaviour, and a "mock's Slack side" bullet under AD-22's "mock as built" (as the POP3, SMTP and OAuth2 sides have).
+  27.2 adds the ruling-5 edits, including a "mock's Slack side" bullet under AD-22's "mock as built".
 - **Routing today (`Core/Rule/Notify.cls`, Lane B):**
   - `Conversation.Tell` already sends `Msg.Outbound` with `OriginChannel` = the turn's channel. The `Outbound` rule sends Telegram replies to `WebChatOut,TelegramOut` and everything else to `WebChatOut`, so a Slack reply reaches only the web chat now.
   - 24.3's `page` routing changed only the `Notification` rules, which stay free of Slack. 27.2 adds one `when` to `Outbound`, e.g. `OriginChannel="slack"` plus a Slack-on condition → `WebChatOut,SlackOut`.
@@ -57,31 +63,30 @@ Make Slack a working OcuTalon channel without socket mode (the platform's WebSoc
   - `Recorded` writes `Data.Delivery.Record(sessionRef, "telegram", "<ChatRef>:<message_id>", ...)`; a failed record is one warning, status OK.
   - `Channel/Telegram/Api.cls` alone builds requests (a new `%Net.HttpRequest` per call, `FollowRedirect` 0, https → `SSLConfig` `OcuTalonClient`) and reads the token at call time. `Safe` strips the exact token from every error text, then runs `Bridge.Redact`. `Endpoint` parses `http(s)://host[:port][/path]`.
   - Telegram's base is an install-step host setting. Slack has none: `SlackOut` reads `OCUTALON_SLACK_API_BASE` itself, defaulting to Slack's public API.
-- **How Slack differs (the plan must settle each):**
-  - **Recipient:** the Slack Item carries only text: no member, channel or team id. `SlackOut` must find the session's member through `Data.SlackLink` (`SessionRefIndex` is unique). No method answers that yet; add one in the own file.
-  - **R8 and Delivery:** `Delivery.Record` already accepts `slack` (Msg.Enum `CHANNEL`). `ChannelMessageId` (MAXLEN 128) must hold no member id.
-  - **Text:** Slack reads `&`, `<` and `>` as markup in `text` and applies its own formatting. Say how the reply is escaped so it reads as Telegram's plain text, and the part size.
-  - **Errors and limits:** Slack answers errors as `{"ok":false,"error":...}` and rate limits as HTTP 429 with a `Retry-After` header.
-  - **`Msg.Notification`:** `SlackOut` should map only `Msg.Outbound`, so a Notification cannot be sent even if misrouted.
+- **How Slack differs:**
+  - **Recipient:** the Slack Item carries only text. `SlackOut` finds the session's member through `Data.SlackLink` (`SessionRefIndex` is unique). No method does that yet, so add one in the own file.
+  - **R8 and Delivery:** `Delivery.Record` already accepts `slack`. `ChannelMessageId` (MAXLEN 128) holds no member id.
+  - **Text and errors:** Slack reads `&`, `<`, `>` as markup, so escape them as ruled. Errors come back as `{"ok":false,"error":...}` and rate limits as 429 with `Retry-After`.
+  - **`Msg.Notification`:** `SlackOut` maps only `Msg.Outbound`, so it can never send a Notification, even a misrouted one.
 - **Production:**
   - Add `SlackOut` (`OcuTalon.Channel.Slack.Out`) in the lane B region of `Production.cls`, beside `SlackIn` (PoolSize 0, Enabled true, with the `On()` gate as precedent).
   - Add its row to the oracle in `Test/Core/ProductionItems.cls`.
 - **CI mock (`ci/mock/`, Lane B; the hosted `web` job runs `mock`):**
   - It serves Telegram's Bot API (`/bot<token>/<method>`, `/_mock/telegram/{updates,replies,calls,files,reset}`, token logged by length only) and match type `telegram` (replies `{status, headers, delayMs, body}`). Slack has nothing yet. Add a Slack Web API side (`chat.postMessage` with a bearer token logged by length only, a calls log, queued replies, reset), a `slack` match type in `scenarios.mjs`, `ci/mock/test/` cases and `B/` scenarios (ok, 429 with `Retry-After`, an error).
   - `OCUTALON_SLACK_API_BASE=http://mock:8080` goes in the unit's `$tmp` override with the dummy `SLACK_*` values (R9). `live:slack-hook` (`docker/tests/test-slack-hook.sh`, `shards-3`, about 373 s) is the live unit to extend.
-- **No socket mode:** no existing check covers it. Add one to a hermetic check script, such as `test-class-rules.sh` or `test-boundaries.sh`.
+- **No socket mode:** no existing check covers it. Add the approved boundary rule to `test-boundaries.sh`, not `test-class-rules.sh`, which `OCT-epic28` edits.
 - **Ownership (AD-29, AD-33):** `Notify`, `Functions`, `Delivery`, `SlackLink`, `Msg.Catalog`, `ci/` except `scenarios/A/`, `README.md` and `GUIDE.md` are Lane B's. Telegram's classes are Lane A's (read only). New items go into the ownership tables in the same change.
 
 ## UX & Interaction Patterns
 
 - **Plain text only:** no Markdown, and the same words Telegram gets.
 - **Web chat:** the web chat already shows the reply and the "via Slack" caption (27.3). No new web text is planned.
-- **Setup steps:** a changed step 1 is public text and needs the author's acceptance, so ship no unruled sentence.
+- **Setup steps:** step 1 with `chat:write` is approved (ruling 1). Ship no other unruled sentence.
 - **Developer docs:** the README is judge-facing and fully pinned by `docker/tests/test-readme.sh`:
   - an exact H2 list, a 2,300-word cap (now 2,235), and a ruled "More" paragraph that must link every `GUIDE.md` H2;
   - no class names outside the guide's "For admins and developers" and "Gmail and Microsoft 365" sections;
   - "How you talk to it" never names Slack.
-  Install and admin material moved to `GUIDE.md` (Story 0.30), so where "a README developer section" lives is a gate question.
+  So, by ruling 4, the README is not edited.
 - **README checks are green:** `GUIDE_H2` has `Slack` and the More paragraph links `GUIDE.md#slack`.
 
 ## Cross-Story Dependencies
@@ -93,4 +98,4 @@ Make Slack a working OcuTalon channel without socket mode (the platform's WebSoc
 - **Notify:** 24.3's `page` routing is merged here, so 27.2's edit is uncontended. Keep the Notification rules as they are.
 - **Epic 28:** Story 28.1 (Lane A) waits for Epic 27 to merge, for the `DraftTransform` verb. 28.2 is integrated here.
 - **Integrated from feature:** 25.9 (`SettingsOps`) and DW-1421 round 3 (bridge `Decide`, `DecisionPayload`).
-- **Demo host:** its proxy blocks the webhook path, and Slack stays off there.
+- **Demo host:** its proxy blocks the webhook path, Slack stays off there, and `Notify` and `SlackOut` both refuse.
