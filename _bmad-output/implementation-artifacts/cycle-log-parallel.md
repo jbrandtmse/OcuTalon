@@ -4678,3 +4678,6 @@
 2026-11-17T07:35:50Z	Epic 28	merge_enqueued	28.3 head=f58e19991 (push after dba56cf55 clean)
 2026-11-17T08:09:37Z	Run	ci_green	feature dba56cf55 (triage-accept merge) ci+lane-a green
 2026-11-17T08:09:39Z	Epic 28	merged	28.3 merge=103a6ac7a
+2026-11-17T08:12:12Z	Epic 28	epic_complete_partial	Epic 28 closed for shipped stories (28.2 1f8733c0e, 28.3 103a6ac7a); 28.1/28.4/28.5 deferred (owner wrap-up); lane C idle; ledger drain 0.89; model-tier hold (recorded)
+2026-11-17T09:44:22Z	Epic 0	ci_green_verified	0.39 3bd28945c runs=44052546169,44052545992 (first attempt, no ci-d)
+2026-11-17T09:44:22Z	Epic 0	merge_enqueued	0.39 head=3bd28945c (push after 103a6ac7a clean)
