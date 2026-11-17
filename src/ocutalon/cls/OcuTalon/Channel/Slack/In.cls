@@ -11,8 +11,9 @@ Include Ensemble
 ///     a claim is given back when the hand-over fails, so that Slack's retry is processed;
 ///   - the event's team id is noted as the install's workspace (Data.SlackLink NoteWorkspace), for the link that an admin makes in Settings (Story 27.3);
 ///   - the event is classified, in this order. A turn is a plain direct message: event type message, channel_type im, no subtype and no bot_id, a sender,
-///     text that is not blank, and a member whose Data.SlackLink row matches both the team and the member id and whose session has a row. It becomes one
-///     OcuTalon.Msg.Item with channel slack, provenance user, FromGuide 0 and only the text (no sender, no member id, no team id), sent asynchronously to
+///     text that is not blank once decoded, and a member whose Data.SlackLink row matches both the team and the member id and whose session has a row. It becomes one
+///     OcuTalon.Msg.Item with channel slack, provenance user, FromGuide 0 and only the text, decoded to plain text by Channel.Slack.Markup (Story 27.2: entities, mentions,
+///     links and channel references, so that no member, channel or subteam id reaches the turn; no sender, no member id, no team id), sent asynchronously to
 ///     Conversation after Core.Trace.Join, in the session's trace thread, by the steps of Channel.Telegram.In Turn (Slack has no allowance: it is off on the
 ///     online demo). Slack has no approval surface: a Slack turn is a typed turn and nothing typed answers an approval request (AD-11);
 ///   - every other event leaves one Channel.Slack.Ignored (a fixed kind and reason and the event id) sent asynchronously to Intake, which drops it silently, in a
@@ -100,7 +101,7 @@ Method Classify(event As OcuTalon.Channel.Slack.Event, Output kind As %String, O
 	If event.BotId '= "" Quit "bot"
 	If event.Subtype '= "" Quit "subtype"
 	If (event.MemberId = "") || (event.TeamId = "") Quit "no_sender"
-	If $ZStrip(event.Text, "<>WC") = "" Quit "blank"
+	If $ZStrip(##class(OcuTalon.Channel.Slack.Markup).Plain(event.Text), "<>WC") = "" Quit "blank"
 	Set sessionRef = ##class(OcuTalon.Data.SlackLink).SessionFor(event.TeamId, event.MemberId)
 	If sessionRef '= "" Quit ""
 	Quit $Select(##class(OcuTalon.Data.SlackLink).LinkedInAnotherTeam(event.TeamId, event.MemberId): "other_team", 1: "unlinked")
@@ -131,7 +132,7 @@ Method Turn(sessionRef As %String, text As %String, now As %String) As %Status [
 			Set item.SessionRef = sessionRef
 			Set item.Channel = ..#CHANNEL
 			Set item.Provenance = "user"
-			Set item.Text = text
+			Set item.Text = ##class(OcuTalon.Channel.Slack.Markup).Plain(text)
 			Set item.FromGuide = 0
 			Set sc = ..SendTurn(item)
 		} Catch exception {

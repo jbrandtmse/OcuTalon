@@ -1097,3 +1097,6 @@
 2026-11-17T06:48:34Z	Story 0.38	spec_validated	gate=approved(4_points;conditions_i-iv;ChatSession_cleanup_on_failure_pinned) 
 2026-11-17T06:48:34Z	Story 0.38	stage_spawned	stage=implement spawn_at=2026-11-17T06:48:34Z model=sonnet effort=high
 2026-11-17T14:56:26Z	Story 0.38	implement_done	commit=ca3a34e5a build_status=done review=31(3_MED_patched,5_LOW,2_deferred:DW-1482,DW-1483) followup_review_recommended=true lead_check=live:slack-hook_re-run_green_after_patches(e038l)
+2026-11-17T03:01:08Z	Story 0.40	chartered	by=lead(Planner_GO;DW-1449_test_isolation) branch=OCT-epic0-dw1449(from_5f1996ed6) edits=Purge_test_isolation+counts+product_pin,security-overview+release-sequence_pin
+2026-11-17T03:11:15Z	Story 0.40	verified	Purge_green;Data_shard_5/5(3_under_load_30);test-release-sequence_27/27;class-rules
+2026-11-17T04:13:20Z	Story 0.40	proof_added	TestDigestTickInsideThePurge green(e040p) mutation(no_Sent_row)->red(e040n)

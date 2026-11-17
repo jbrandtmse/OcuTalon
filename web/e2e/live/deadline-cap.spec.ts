@@ -49,9 +49,13 @@ test('irisScript: a session with a long bound is stopped by name before the test
   });
 });
 
+/** The rest of a Navigable that these cases do not use: a page at no address, whose error page waits are never needed. */
+const NO_ERROR_PAGE = { url: () => 'about:blank', waitForURL: async () => undefined };
+
 test('gotoSettled: a navigation that never ends fails by name before the test timeout', async () => {
   test.setTimeout(12_000);
   const never: Navigable = {
+    ...NO_ERROR_PAGE,
     goto: (_url, options) =>
       new Promise((_resolve, reject) => {
         setTimeout(() => reject(Object.assign(new Error('page.goto: Timeout exceeded.'), { name: 'TimeoutError' })), options?.timeout ?? 0);
@@ -74,6 +78,7 @@ test('gotoSettled: the retry runs under the time that is left, and an explicit t
   test.setTimeout(20_000);
   const timeouts: Array<number | undefined> = [];
   const aborted: Navigable = {
+    ...NO_ERROR_PAGE,
     goto: async (_url, options) => {
       timeouts.push(options?.timeout);
       if (timeouts.length === 1) {
@@ -88,6 +93,7 @@ test('gotoSettled: the retry runs under the time that is left, and an explicit t
   expect(timeouts[0]).toBeLessThanOrEqual(10_000);
   expect(timeouts[1], 'the retry to the floor').toBe(5_000);
   const explicit: Navigable = {
+    ...NO_ERROR_PAGE,
     goto: async (_url, options) => {
       timeouts.push(options?.timeout);
       return null;

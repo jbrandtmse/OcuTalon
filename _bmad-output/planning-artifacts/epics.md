@@ -2020,6 +2020,65 @@ So that removing a role, or making someone a viewer, closes every channel at onc
 **Then** every workflow is green
 - DW-1284: Telegram and email take a message in on the strength of the pairing or the saved mailbox, not of the person's role at use time (ledger; raised in priority by the Contest Planner 2026-11-16)
 
+### Story 0.39: Browser-timing flakes wait for the page's real readiness, and a turn at the UTC day rollover does not error
+
+[ADDED 2026-11-17, Contest Planner, browser-timing flake burndown] (dispatch ~01:30Z Nov 17, lane A; flake tally of 2026-11-16). Test only and bounded, except DW-1464, a product-bug candidate whose fix is a Planner gate item. Branch `OCT-epic0-flakes` from feature 1f8733c0e. Binding conditions: fix the CAUSE of each flake and wait on the real readiness signal, never a sleep; no blanket timeout raises, no added retries that hide a failure, no weakened assertions; a timeout raise only where it is truly the only fix, justified per test; a product-code change (for example a readiness marker the page exposes) goes to the Planner first; each fix is proved by a loop of the affected spec under load (at least 10 iterations beside a busy stack, with before and after counts).
+
+As the person who merges OcuTalon's work,
+I want each browser-timing flake of the 2026-11-16 tally fixed at its cause,
+So that a red CI run means a real defect, not a race in a test.
+
+**Acceptance Criteria:**
+
+**Given** each flake below
+**When** this story changes its test (or, with the Planner's approval, the page)
+**Then** the test waits for the real readiness signal the failure lacked, with no sleep, no added retry, no weakened assertion and no blanket timeout raise
+**And** the spec names each flake's cause, its fix, and its host and runner from the tally
+
+**Given** the affected specs
+**When** each runs at least 10 times in a loop beside a busy stack, before and after the fix
+**Then** the before and after counts are recorded, and the after loop is green
+
+**Given** a conversation turn at the UTC day rollover (DW-1464)
+**When** a deterministic test sets the clock to 23:59:59 and then 00:00:01 UTC
+**Then** the turn does not error before its first agent step, and the day-keyed read on the turn path that caused it is named
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+- DW-1448: telegram-page.spec.ts:196 T2, main.main missing after a reload (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-1458: history.spec.ts:316 H7, no Decisions tab after a reload, the same pattern as DW-1448 (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-349: live:floor focus.spec.ts:145 P4, page.goto interrupted by a chrome-error navigation (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-555: Usage U12, page.goto interrupted by a chrome-error navigation (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-1450: live:online-demo row 6, the proxied sign-in at the cap gave 'other' (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-1451: memory-card.spec.ts:219 MC3, a fulfilled-500 route never finished (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-1452: guide.spec.ts:486 Q7, the page clock line not found (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-1457: heartbeat-card.spec.ts:369 HC8, the 'Today:' line missing (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-1464: a turn errors at the UTC day rollover (00:00:06Z, agentStepCount 0); product-bug candidate (ledger; added by the Contest Planner 2026-11-17)
+
+### Story 0.40: The purge test's sessions are kept out of the daily digest, and the purge text says what is removed
+
+[ADDED 2026-11-17, Contest Planner, DW-1449 classified as test isolation] (dw-1449-rulings-20261117.md, the CLASSIFIED and GO sections; a release gate next to Story 0.38). Purge.Keeps is unchanged (AD-27's documented rule).
+
+As a maintainer relying on the purge test,
+I want its fixture sessions isolated from the running production's daily digest, and the security overview to say what the purge removes,
+So that the test fails only for a real fault, and the documentation matches AD-27.
+
+**Acceptance Criteria:**
+
+**Given** Test.Data.Purge on a running production whose Digest ticks
+**When** a tick lands during a test
+**Then** no fixture session gets a digest, a Delivery or a SimMessage, because each has a Digest.Data.Sent row of Kind scheduled with a far-future DueAt (removed after the test); the idle-session and kept-session messages carry the row counts before and after the purge; and the test passes in a loop under load
+
+**Given** AD-27's documented rule
+**When** Retention.Purge(90) runs
+**Then** a session 91 days old with no activity of any kind is purged, and one with a Delivery recorded now is kept
+
+**Given** docs/security-overview.md's Data section
+**When** test-release-sequence reads it
+**Then** it holds the Contest Planner's approved purge sentences verbatim (turns and notice records after 90 days; a session only when nothing current or recent keeps it), with a control that fails on a change
+- DW-1449: Test.Data.Purge TestCurrentSessionLosesNoRows failed three times in CI; classified as test isolation (the daily digest fan-out reached the fixture sessions)
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
@@ -9301,9 +9360,9 @@ So that the conversation stays where I started it (step 7, Could).
 **When** CI runs
 **Then** no Slack code opens a WebSocket or uses socket mode, and the Slack tests run against a Slack API mock in CI's mock service, with scenarios under `ci/mock/scenarios/B/`, never against Slack itself (FR-46, AD-22, REL-4)
 
-**Given** the README
+**Given** `GUIDE.md` › Slack, linked from the README
 **When** Slack ships
-**Then** a developer section explains in plain English creating the Slack app, subscribing its events to the Slack route on a public HTTPS address, setting the environment variables and linking a member, and claims nothing the release doesn't ship (FR-46, FR-58, NFR-24)
+**Then** a developer section explains in plain English creating the Slack app, subscribing its events to the Slack route on a public HTTPS address, setting the environment variables and linking a member, and claims nothing the release doesn't ship (FR-46, FR-58, NFR-24) [AMENDED 2026-11-17, Contest Planner ruling (story-272 gate (4)): it read "**Given** the README"; the README is capped and links `GUIDE.md#slack`, and no README sentence is added]
 
 ### Story 27.3: Link Slack members in Settings
 
@@ -9449,6 +9508,7 @@ So that I can check status and history from my own tools (step 7, Could).
 **When** they connect anonymously, with a wrong password, as a user without `OcuTalonMCPClient`, and as a user with it
 **Then** the first three are refused, and a user with the role can list and call the tools, which run as that IRIS user and return only that user's session's records, never a second user's (FR-51, AD-4, AD-24)
 **And** a guide says how to connect, and the server stays off on the online demo
+- DW-1459: OnAuthenticate's refusals (online demo, widened specification) and the real $Username and application role through the dispatcher or iris-mcp-server (ledger; routed by harvest 2026-11-16)
 
 ## Epic 29: The online demo's platform side
 

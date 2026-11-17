@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Live test of the Slack route of the hook application (Story 27.1; AD-1, AD-13, AD-14, AD-17, AD-19, AD-24, AD-26; Contest Planner rulings R1 to R6, R8 and R9): one
+# Live test of the Slack route of the hook application and of the replies to it (Stories 27.1 and 27.2; AD-1, AD-13, AD-14, AD-17, AD-19, AD-22, AD-24, AD-26; Contest Planner rulings R1 to R6, R8 and R9): one
 # throwaway, started twice on the same volume, posts signed and unsigned requests to POST /ocutalon/hook/slack/events through the real web application and checks what
-# the route, SlackIn, Conversation and Intake did. No call is made to slack.com or any other service: the only traffic is curl to the throwaway. The signing secret and the bot
+# the route, SlackIn, Conversation, Notify, SlackOut and Intake did. No call is made to slack.com or any other service: the only traffic is curl to the throwaway, and the
+# replies go to the CI mock's Slack Web API side (OCUTALON_SLACK_API_BASE, set in this unit's own override only). The signing secret and the bot
 # token are dummy values that live only in shell variables of this script and in a compose override in its temporary folder; neither is ever printed, and a check that fails
 # prints counts only. In order:
 #   1. (R9) the default stack, with no override: Slack is off, so a signed POST to the route is 404 with no body, SlackIn.On() is 0, and nothing is counted;
@@ -15,8 +16,11 @@
 #   3-link. (Story 27.3) the README admin signs in with curl: GET /api/v1/settings/channels/slack answers state on and the events path; a signed direct message from the fixture member
 #      before the link is Ignored (unlinked) and notes the workspace (T0FIXTURE1) in ^OcuTalonP.SlackW; POST links the member to the README user (200, one Settings entry slackLink.<Ref>,
 #      from nothing to the user, and no id in it), and a second POST of the same pair answers the same Ref;
-#   3b. (R1, R2, R4, R6) signed events: a linked member's direct message is 200 in under 3 s and, in the end, exactly one Turn of channel slack in the member's session, joined to the
-#      session's thread; the same event id with X-Slack-Retry-Num 1 is 200 and still one Turn; a typed "approve" is a second user Turn and leaves the open approval request pending; an
+#   3b. (R1, R2, R4, R6; Story 27.2) signed events: a linked member's direct message (with Slack's markup: entities, a mention and a link) is 200 in under 3 s and, in the end, exactly one
+#      Turn of channel slack in the member's session, joined to the session's thread, whose text is the decoded plain text; the mock's Slack side is reset first, and the reply is exactly
+#      one chat.postMessage (the channel is the fixture member, compared inside IRIS and printed as 1 or 0; the text is the escaped text that Telegram would get; mrkdwn and both unfurls
+#      false), one Delivery row "<link Ref>:<ts>" of that call with no text, and the Notify headers to WebChatOut and to SlackOut; the same event id with X-Slack-Retry-Num 1 is 200 and
+#      still one Turn and one post; a typed "approve" is a second user Turn (and a second post) and leaves the open approval request pending; an
 #      unlinked member, the same member id in another team, a bot_id, a message_changed and a channel message are 200 each, add no Turn and leave one Ignored header each, in a trace
 #      session of its own;
 #      The five ignored events also leave the rows of the link table exactly as they were, the second team's (R2, Contest Planner ruling 2026-11-16) included: the same member id from a second
@@ -31,7 +35,9 @@
 #      users; an admin who also holds OcuTalonUser keeps getting turns; an account that is cut down after it was linked (to the viewer role alone, to OcuTalonAdmin alone, to no role) or disabled, or
 #      whose ExpirationDate is then two days ago (both still hold OcuTalonUser), gets no Turn from its next
 #      direct message, no Decide request, no Notify (no reply is sent), no Delivery row and exactly one content-free Channel.Refused {slack, not_user} for each, and no marker of a refused message is in the event
-#      log, the live events, the audit log or the container's logs.
+#      log, the live events, the audit log or the container's logs, and the mock's Slack side lists no chat.postMessage for any of the refused messages (the side is reset at
+#      the start of the phase; each accepted turn's reply is one call).
+# Phase 5 also scans the mock's output and its request log for the dummy values and the fixture ids.
 # The project is unique and publishes its web port on 127.0.0.1 only (OCUTALON_TEST_WEB_PORT or the first free of 52800 to 52819). An EXIT trap removes the project with its volume
 # and images. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 # Needs docker compose, the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0), node and curl.
@@ -121,6 +127,23 @@ link_rows() {
   scalar OCUTALON rows 'Set r="",id="" For { Set id=$Order(^OcuTalonP.SlackLinkD(id)) Quit:id=""  Set o=##class(OcuTalon.Data.SlackLink).%OpenId(id) If $IsObject(o) { Set r=r_o.TeamId_"/"_o.MemberId_"/"_o.SessionRef_";" } } Write !,"CHK|rows|",r'
 }
 
+# mock_slack_reset: clears the Slack side of the CI mock (its calls, queued replies and counter); prints the HTTP status.
+mock_slack_reset() {
+  scalar OCUTALON reset 'Set rq=##class(%Net.HttpRequest).%New(),rq.Server="mock",rq.Port=8080,rq.Timeout=10 Set sc=rq.Post("/_mock/slack/reset") Write !,"CHK|reset|",rq.HttpResponse.StatusCode'
+}
+
+# slack_calls: the number of calls that the mock's Slack side lists.
+slack_calls() {
+  scalar OCUTALON calls 'Set rq=##class(%Net.HttpRequest).%New(),rq.Server="mock",rq.Port=8080,rq.Timeout=10 Set sc=rq.Get("/_mock/slack/calls") Write !,"CHK|calls|",$Select(rq.HttpResponse.StatusCode=200:{}.%FromJSON(rq.HttpResponse.Data).calls.%Size(),1:"none")'
+}
+slack_calls_are() { [ "$(slack_calls)" = "$1" ]; }
+
+# slack_deliveries: the number of Delivery rows of channel slack of the session.
+slack_deliveries() {
+  scalar OCUTALON deliveries "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'slack'\",\"$session\") Do rs.%Next() Write !,\"CHK|deliveries|\",+rs.%GetData(1)"
+}
+slack_deliveries_are() { [ "$(slack_deliveries)" = "$1" ]; }
+
 # The README account of a local install signs in with the cookie jar, and the settings routes are called with the browser envelope (a copy of test-documents.sh's helpers,
 # because lib-live.sh is shared).
 readme_user=ocutalon
@@ -173,7 +196,7 @@ CHK|claimed|0" \
 
 # --- 2: Slack on: the override, a recreate on the same volume, the seed ---
 
-printf 'services:\n  iris:\n    environment:\n      SLACK_SIGNING_SECRET: "%s"\n      SLACK_BOT_TOKEN: "%s"\n' "$secret" "$token" > "$tmp/slack.yml"
+printf 'services:\n  iris:\n    environment:\n      SLACK_SIGNING_SECRET: "%s"\n      SLACK_BOT_TOKEN: "%s"\n      OCUTALON_SLACK_API_BASE: "http://mock:8080/api"\n' "$secret" "$token" > "$tmp/slack.yml"
 live_add_file "$tmp/slack.yml"
 if ! dc up -d > "$tmp/up2.log" 2>&1; then
   tail -n 20 "$tmp/up2.log" | sed "s/$secret/<redacted>/g; s/$token/<redacted>/g"
@@ -278,7 +301,11 @@ if [ "$code" = 200 ] && [ -n "$link_ref" ] && [ "$(json_field ref)" = "$link_ref
 
 # --- 3b (R1, R2, R4, R6): the events ---
 
-mkevent "$tmp/dm.json" Ev0LINKED "$TEAM" "$MEMBER" "$LINKEDTEXT hello from slack"
+# The text has Slack's markup: two entities, a mention of another member and a link. The Turn must hold the plain text that the person typed, with no member id (Story 27.2).
+LINKEDMARKUP="$LINKEDTEXT a &amp; b &lt;3 <@${UNLINKED}> <https://e.x|e.x>"
+LINKEDPLAIN="$LINKEDTEXT a & b <3 @someone e.x (https://e.x)"
+if [ "$(mock_slack_reset)" = 200 ]; then pass "phase 3b (Story 27.2): the mock's Slack side is reset before the first reply"; else fail "phase 3b: the reset of the mock's Slack side failed"; fi
+mkevent "$tmp/dm.json" Ev0LINKED "$TEAM" "$MEMBER" "$LINKEDMARKUP"
 out=$(signed_post "$tmp/dm.json")
 elapsed=${out#* }
 if [ "${out%% *}" = 200 ] && [ ! -s "$tmp/out.body" ] && awk -v t="$elapsed" 'BEGIN { exit !(t < 3.0) }'; then
@@ -292,15 +319,39 @@ else
   fail "phase 3: $(turns) Turn(s) of channel slack in the member's session, wanted 1"
 fi
 check_session "phase 3: the Turn is a user turn of the session and the session has a trace thread" OCUTALON \
-  "CHK|turn|slack|$LINKEDTEXT hello from slack
+  "CHK|turn|slack|$LINKEDPLAIN
 CHK|thread|1" \
   "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT Channel, Text FROM OcuTalon_Data.Turn WHERE SessionRef = ?\",\"$session\") Do rs.%Next() Write !,\"CHK|turn|\",rs.%Get(\"Channel\"),\"|\",rs.%Get(\"Text\")" \
   "Write !,\"CHK|thread|\",(##class(OcuTalon.Data.Session).RefIndexOpen(\"$session\").ThreadSessionId'=\"\")" \
+  'Halt'
+# The reply (Story 27.2, AC 1): one chat.postMessage to the linked member, with the text that Telegram would get, escaped, and no formatting; one Delivery row; Notify sent the reply to both.
+if wait_until 120 slack_calls_are 1; then pass "phase 3b (Story 27.2): the reply to the Slack turn is one chat.postMessage at the mock"; else fail "phase 3b: the mock lists $(slack_calls) chat.postMessage call(s), wanted 1"; fi
+if ! wait_until 60 slack_deliveries_are 1; then fail "phase 3b: the Delivery row of the reply was not written within 60 s"; fi
+check_session "phase 3b (Story 27.2): still one call; its channel is the linked member (1 or 0 only), the Authorization header held the bot token (its length in the mock's request log, never the value), its text is the reply's text escaped, mrkdwn and both unfurls are false; one Delivery row <link Ref>:<ts> of that call with no text; Notify sent the reply to WebChatOut and to SlackOut once each" OCUTALON \
+  "CHK|calls|1
+CHK|channel|1
+CHK|flags|1
+CHK|tokenlen|1
+CHK|text|1
+CHK|delivery|1|1|1|1
+CHK|routes|1|1" \
+  'Set rq=##class(%Net.HttpRequest).%New(),rq.Server="mock",rq.Port=8080,rq.Timeout=10 Set sc=rq.Get("/_mock/slack/calls") Set calls={}.%FromJSON(rq.HttpResponse.Data).calls Write !,"CHK|calls|",calls.%Size()' \
+  'Set p=calls.%Get(0).params Write !,"CHK|channel|",(p.channel="'"$MEMBER"'")' \
+  'Write !,"CHK|flags|",(p.%GetTypeOf("mrkdwn")="boolean")&&(p.mrkdwn=0)&&(p."unfurl_links"=0)&&(p."unfurl_media"=0)' \
+  'Set st=##class(%Stream.FileCharacter).%New(),sc=st.LinkToFile("/opt/ocutalon/mock-log/requests.jsonl"),tl=-1 While '"'"'st.AtEnd { Set ln=st.ReadLine() If ln["""slackMethod"":""chat.postMessage""" { Set tl={}.%FromJSON(ln).tokenLength } } Write !,"CHK|tokenlen|",(tl='"${#token}"')' \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT TOP 1 MessageBodyId FROM Ens.MessageHeader WHERE MessageBodyClassName = ? AND SourceConfigName = ? AND TargetConfigName = ? ORDER BY ID","OcuTalon.Msg.Outbound","Notify","SlackOut") Do rs.%Next() Set ob=##class(OcuTalon.Msg.Outbound).%OpenId(rs.%GetData(1))' \
+  'Set t=##class(OcuTalon.Channel.ReplyText).Text(ob,"slack",.tsc) Set t=$Replace($Replace($Replace(t,"&","&amp;"),"<","&lt;"),">","&gt;") Write !,"CHK|text|",(t'"'"'="")&&(p.text=t)' \
+  "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT ChannelMessageId, Text FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = ?\",\"$session\",\"slack\") Set n=0,id=\"\",tx=\"x\" While rs.%Next() { Set n=n+1,id=rs.%Get(\"ChannelMessageId\"),tx=rs.%Get(\"Text\") }" \
+  "Write !,\"CHK|delivery|\",n,\"|\",(\$Piece(id,\":\",1)=\"$link_ref\"),\"|\",\$Match(\$Piece(id,\":\",2),\"^[0-9]{10}\\.00000\"_calls.%Get(0).seq_\"\$\"),\"|\",(tx=\"\")" \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName = ? AND SourceConfigName = ? AND TargetConfigName = ?","OcuTalon.Msg.Outbound","Notify","WebChatOut") Do rs.%Next() Set w=rs.%GetData(1)' \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName = ? AND SourceConfigName = ? AND TargetConfigName = ?","OcuTalon.Msg.Outbound","Notify","SlackOut") Do rs.%Next() Set k=rs.%GetData(1)' \
+  'Write !,"CHK|routes|",w,"|",k' \
   'Halt'
 out=$(signed_post "$tmp/dm.json" 1)
 if [ "${out%% *}" = 200 ]; then pass "phase 3 (R4): the same event id with X-Slack-Retry-Num 1 is 200"; else fail "phase 3 (R4): the retry is '${out%% *}'"; fi
 sleep 5
 if [ "$(turns)" = 1 ]; then pass "phase 3 (R4): and there is still one Turn"; else fail "phase 3 (R4): $(turns) Turn(s) after the retry"; fi
+if [ "$(slack_calls)" = 1 ]; then pass "phase 3 (R4): and still one chat.postMessage"; else fail "phase 3 (R4): $(slack_calls) chat.postMessage call(s) after the retry, wanted 1"; fi
 
 mkevent "$tmp/approve.json" Ev0APPROVE "$TEAM" "$MEMBER" "approve"
 expect_post "phase 3 (R6): a linked member types approve" 200 "$tmp/approve.json"
@@ -309,6 +360,7 @@ if wait_until 90 turns_are 2; then
 else
   fail "phase 3 (R6): $(turns) Turn(s), wanted 2"
 fi
+if wait_until 120 slack_calls_are 2; then pass "phase 3 (R6): and its reply is a second chat.postMessage, one per accepted turn"; else fail "phase 3 (R6): $(slack_calls) chat.postMessage call(s), wanted 2"; fi
 check_session "phase 3 (R6): the open approval request is still pending and unanswered" OCUTALON \
   "CHK|approval|pending||" \
   "Set r=##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(\"$approval\") Write !,\"CHK|approval|\",r.State,\"|\",r.AnsweredAt,\"|\",r.AnsweredAction" \
@@ -368,6 +420,16 @@ for pair in "the dummy signing secret and bot token:$DUMMY" "the fixture ids:0FI
   if [ "$n" = 0 ]; then pass "phase 5: no line of the container's output, messages.log or the after-start log holds ${pair%%:*}"; else fail "phase 5: $n line(s) of the container's logs hold ${pair%%:*}"; fi
 done
 if [ "$(log_hits "$LINKEDTEXT")" = 0 ]; then pass "phase 5: nor the text of the linked message, which only the Turn and its message hold"; else fail "phase 5: a line of the container's logs holds the linked message's text"; fi
+
+# mock_hits <text>: the lines of the mock's output and of its request log (which the iris container reads from the mock-log volume) that hold the text.
+mock_hits() {
+  { dc logs --no-color mock 2>&1; dc exec -T iris cat /opt/ocutalon/mock-log/requests.jsonl 2>/dev/null; } | grep -cF -e "$1"
+}
+for pair in "the dummy signing secret and bot token:$DUMMY" "the fixture ids:0FIXTURE" "the text of an ignored event:$IGNOREDTEXT"; do
+  n=$(mock_hits "${pair#*:}")
+  if [ "$n" = 0 ]; then pass "phase 5 (Story 27.2): no line of the mock's output or request log holds ${pair%%:*}"; else fail "phase 5 (Story 27.2): $n line(s) of the mock's logs hold ${pair%%:*}"; fi
+done
+if [ "$(dc exec -T iris cat /opt/ocutalon/mock-log/requests.jsonl 2>/dev/null | grep -cF -e '"slackMethod":"chat.postMessage"')" -ge 1 ]; then pass "phase 5 (Story 27.2): control: the mock's request log file lists the posts by method name"; else fail "phase 5 (Story 27.2): control: the mock's request log file lists no chat.postMessage"; fi
 
 zero=
 for value in "$DUMMY" "0FIXTURE" "$IGNOREDTEXT" "$REJECTEDTEXT"; do
@@ -485,6 +547,7 @@ dm() {
 }
 
 REFUSEDTEXT=zzslackrefused
+if [ "$(mock_slack_reset)" = 200 ]; then pass "phase 7 (Story 27.2): the mock's Slack side is reset at the start of the phase"; else fail "phase 7: the reset of the mock's Slack side failed"; fi
 live_fixture_role OcuTalonViewer > /dev/null
 fixture_account zzslkau "OcuTalonAdmin,OcuTalonUser"
 fixture_account zzslkvl "OcuTalonUser"
@@ -539,6 +602,8 @@ done
 # Use time: the accounts are cut down after they were linked, and each next message is refused.
 if ! wait_until 120 idle; then fail "phase 7: the turns did not settle within 120 s"; fi
 if ! wait_until 60 settled; then fail "phase 7: the sends of the earlier turns did not settle within 60 s"; fi
+if wait_until 120 slack_calls_are 4; then pass "phase 7 (Story 27.2): each of the four accepted turns had one reply, one chat.postMessage each"; else fail "phase 7 (Story 27.2): $(slack_calls) chat.postMessage call(s) for the four accepted turns, wanted 4"; fi
+posts_before=$(slack_calls)
 set_roles zzslkvl "OcuTalonViewer"
 set_roles zzslkao "OcuTalonAdmin"
 set_roles zzslkrm ""
@@ -557,6 +622,7 @@ for pair in "$sess_vl:$member_vl:viewer role alone" "$sess_ao:$member_ao:OcuTalo
   if [ "$(not_user_count)" = "$refused" ]; then pass "phase 7: and no second record"; else fail "phase 7: $(not_user_count) not_user record(s) after the wait, wanted $refused"; fi
   if turns_of_are "${pair%%:*}" 1; then pass "phase 7: it makes no Turn (the session still has its one)"; else fail "phase 7: $(turns_of "${pair%%:*}") Turn(s), wanted 1"; fi
   if [ "$(sends)" = "$before_sends" ]; then pass "phase 7: nothing goes to Decide (no model call, no tool call) or Notify (no reply is sent), and no Delivery row is written"; else fail "phase 7: the sends to Decide and Notify and the Delivery rows changed ($before_sends, now $(sends))"; fi
+  if [ "$(slack_calls)" = "$posts_before" ]; then pass "phase 7 (Story 27.2): and the mock's Slack side lists no chat.postMessage for it (still $posts_before)"; else fail "phase 7 (Story 27.2): the mock lists $(slack_calls) chat.postMessage call(s) after a refused message, wanted $posts_before"; fi
 done
 check_session "phase 7: each not_user record is a Channel.Refused {slack, not_user} from Conversation to Intake, no Slack.Ignored carries not_user, and no Turn row exists for the refused messages" OCUTALON \
   "CHK|route|5
@@ -570,6 +636,7 @@ CHK|marker|0" \
   'Halt'
 dm "an admin who also holds OcuTalonUser, once more" Ev0ROLEAU2 "$member_au" "$LINKEDTEXT role au again"
 if wait_until 90 turns_of_are "$sess_au" 2; then pass "phase 7 (pin 4): an admin who also holds OcuTalonUser still gets turns"; else fail "phase 7: $(turns_of "$sess_au") Turn(s) for the admin who holds OcuTalonUser, wanted 2"; fi
+if wait_until 120 slack_calls_are "$((posts_before + 1))"; then pass "phase 7 (Story 27.2): and its reply is one more chat.postMessage (control: the mock lists the posts of accepted turns)"; else fail "phase 7 (Story 27.2): $(slack_calls) chat.postMessage call(s), wanted $((posts_before + 1))"; fi
 zero7="\"$REFUSEDTEXT\",\"zzslk\",\"0FIXTURE\""
 check_session "phase 7: no event-log row or live event holds the text of a refused message, a fixture account's name or a fixture id" OCUTALON \
   "CHK|log|0

@@ -3,7 +3,7 @@ import qrcode from 'qrcode-generator';
 
 import { changeSnapshot, STATE } from '../support/api';
 import { pointKeys, restoreKeys } from '../support/devices';
-import { composerOf, inMs, replyOf, signInReadmeLoaded } from '../support/floor';
+import { composerOf, inMs, loadedAfter, replyOf, signInReadmeLoaded } from '../support/floor';
 import { chk, irisScript, quoted, setTelegramIncluded } from '../support/iris';
 import { announcedTexts, plain, recordAnnouncements, tokenColor } from '../support/page';
 
@@ -101,12 +101,6 @@ async function expectNotPausedCard(page: Page, bound: number): Promise<void> {
   await expect(card.locator('[data-state="paused"]'), 'the card is not paused').toHaveCount(0, { timeout: bound });
   expect(plain(await card.innerText()), 'and shows neither paused text').not.toMatch(/Telegram paused|Trying again at/);
 }
-
-/** Reloads (or loads) and waits for the loaded snapshot. */
-async function loaded(page: Page): Promise<void> {
-  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
-}
-
 
 /** The fixture class of the IRIS side. */
 const FIXTURE = '##class(OcuTalon.Test.Channel.TelegramPageFixture)';
@@ -216,8 +210,7 @@ test.describe('the Telegram card is paused while Telegram is paused (Story 12.8)
           one.paused ? { condition: 'telegramPaused', active: true, slots: { time: SNAPSHOT_TIME } } : { condition: 'telegramPaused', active: false },
         ];
       });
-      await page.reload();
-      await loaded(page);
+      await loadedAfter(page, () => page.reload());
       await expect(cardOf(page), `${one.label}: the Telegram card is in the rail`).toHaveCount(1);
       if (one.paused) {
         await expectPausedCard(page, '17:30', LOADED_MS);
@@ -284,8 +277,7 @@ test.describe('the Telegram card is paused while Telegram is paused (Story 12.8)
       const pausedHtml = await page.content();
 
       // A reload shows the same, from /state.
-      await page.reload();
-      await loaded(page);
+      await loadedAfter(page, () => page.reload());
       await expectBanner(page, time, APPLIED_MS);
       await expectPausedCard(page, time, APPLIED_MS);
 
@@ -587,8 +579,7 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
         sent.length = 0;
         statuses.length = 0;
         await onSnapshot(one.paired, one.displayName);
-        await page.reload();
-        await loaded(page);
+        await loadedAfter(page, () => page.reload());
         const card = cardOf(page);
         await expect(card, `${one.label}: the Telegram card is in the rail`).toHaveCount(1);
         if (!one.paired) {
@@ -620,8 +611,7 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
         await page.unrouteAll({ behavior: 'ignoreErrors' });
         sent.length = 0;
         await onSnapshot(true, 'Zz', { state: one.state, botUserName: one.botUserName });
-        await page.reload();
-        await loaded(page);
+        await loadedAfter(page, () => page.reload());
         await expect(cardOf(page).locator(`[data-state="${one.view}"]`), `${one.label}: the card is ${one.view}`).toHaveCount(1, { timeout: LOADED_MS });
         await expect.poll(async () => plain(await cardOf(page).innerText()), { message: `${one.label}: the card says so` }).toMatch(new RegExp(`^${one.says}`));
         await page.waitForTimeout(3000);
@@ -634,8 +624,7 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
         sent.length = 0;
         await onSnapshot(false, '');
         await page.route(CODE_ROUTE, (route) => route.fulfill(answer()));
-        await page.reload();
-        await loaded(page);
+        await loadedAfter(page, () => page.reload());
         await expect.poll(() => sent.length, { message: `${label}: one request for a code`, timeout: LOADED_MS }).toBe(1);
       };
       const caption = cardOf(page).locator('.caption');
@@ -777,8 +766,7 @@ test.describe('a valid code pairs the chat with the session (Story 12.4)', () =>
 
       // A reload while paired: the snapshot shows it, nothing is announced and no code is asked for.
       posts.length = 0;
-      await page.reload();
-      await loaded(page);
+      await loadedAfter(page, () => page.reload());
       await expect(paired, 'the card is paired again from the snapshot').toHaveCount(1, { timeout: LOADED_MS });
       await expect.poll(async () => plain(await card.innerText()), { message: 'with the name' }).toBe('Telegram paired \u00b7 Dana Unpair');
       await page.waitForTimeout(3000);

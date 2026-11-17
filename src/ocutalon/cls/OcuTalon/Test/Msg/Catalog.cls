@@ -135,19 +135,19 @@ Method TestEntries()
 	Do $$$AssertEquals(actual, wanted, "0 keys carry a gap")
 }
 
-/// Rows 1, 2 and 10's channels: the fixtures cover exactly the catalog, every key renders on the four channels with the
-/// fixture's text, the message channels agree, the web channel uses its own wording, and the other channels are refused.
+/// Rows 1, 2 and 10's channels: the fixtures cover exactly the catalog, every key renders on the six channels with the
+/// fixture's text (slack's and telegram's are the same fixture text), the message channels agree, the web channel uses its own wording, and the other channels are refused.
 Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
 	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 330 keys of the catalog")
 	Set refused = ..RefusedChannels()
-	Do $$$AssertEquals(refused, "webhook,slack,system,heartbeat", "four Msg.Enum channels are refused")
+	Do $$$AssertEquals(refused, "webhook,system,heartbeat", "three Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
 	While iterator.%GetNext(.key, .fixture) {
 		Set expectedWeb = $Select(fixture.%IsDefined("web"): fixture.web, 1: fixture.text)
-		For channel = "phone", "mailbox", "telegram", "email", "web" {
+		For channel = "phone", "mailbox", "telegram", "email", "slack", "web" {
 			Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, fixture.slots, channel, ..#NOW, 1, .sc)
 			Do $$$AssertStatusOK(sc, key_" renders on "_channel)
 			Do $$$AssertEquals(text, $Select(channel = "web": expectedWeb, 1: fixture.text), key_" on "_channel_" is the fixture's text")
@@ -365,7 +365,7 @@ Method TestErrors()
 	Set key = "incident.withFix"
 	Do ..AssertRefused("an unknown key", "incident.nope", good, "telegram", "incident.nope")
 	Do ..AssertRefused("an empty key", "", good, "telegram", "key")
-	For channel = "webhook", "slack", "system", "" {
+	For channel = "webhook", "system", "" {
 		Do ..AssertRefused("the channel '"_channel_"'", key, good, channel, "channel '"_channel_"'", key)
 	}
 	For slots = "[1,2]", """text""", "5", "{", "null", "true" {
@@ -701,14 +701,14 @@ Method AssertOneProblem(entries As %DynamicObject, key As %String, label As %Str
 	Do $$$AssertTrue(problems [ fragment, label_" is a problem that Problems names: "_problems)
 }
 
-/// Row 10's channels: only the exact names web, phone, mailbox, telegram and email render; any other spelling is refused with an error
+/// Row 10's channels: only the exact names web, phone, mailbox, telegram, email and slack render; any other spelling is refused with an error
 /// that names it, even when the key and the slots are good.
 Method TestChannelNames()
 {
-	For channel = "WEB", "Web", "web ", " web", "web,phone", "telegram,", "w", "phone"_$Char(10), "Telegram", "MAILBOX", "web phone", "phone/telegram", "Email", "EMAIL", "email " {
+	For channel = "WEB", "Web", "web ", " web", "web,phone", "telegram,", "w", "phone"_$Char(10), "Telegram", "MAILBOX", "web phone", "phone/telegram", "Email", "EMAIL", "email ", "Slack", "SLACK", "slack " {
 		Do ..AssertRefused("the channel '"_channel_"'", "press.rejected", {}, channel, "channel '"_channel_"'", "press.rejected")
 	}
-	For channel = "web", "phone", "mailbox", "telegram", "email" {
+	For channel = "web", "phone", "mailbox", "telegram", "email", "slack" {
 		Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("press.rejected", {}, channel, ..#NOW, 1, .sc)
 		Do $$$AssertEquals(text, "Rejected. Nothing was changed.", "the channel "_channel_" renders")
 	}

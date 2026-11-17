@@ -2333,6 +2333,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-15T08:19:41Z occurrence=feature-97e062daf by=orchestrator note=run 43690544372 att1 iris(shards-6) Test.Web.GuideApi TestOnlyTheMarkerChanges (trace_opened and run_again): the after fingerprint gained the session's event rows 4-9 watch.progress (a real tick between the two fingerprints); one rerun of failed jobs when the run completes
 - 2026-11-15T08:57:34Z occurrence=feature-97e062daf by=orchestrator note=rerun of failed jobs, attempt 2 of 43690544372: shards-6 green
 - 2026-11-15T18:58:28Z occurrence=feature-16cdbf568 by=orchestrator note=run 43746506248 att1 iris(shards-6) on ocutalon-ci-29: GuideApi TestOnlyTheMarkerChanges (trace_opened, run_again) and TestRunAgain (DW-453 sibling); superseded by 8c71bef6e, not rerun
+- 2026-11-17T01:02:09Z status=routed owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=lead note=chartered_into_Story_0.39_(Planner_flake_burndown_dispatch_2026-11-17)
+- 2026-11-17T09:03:58Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=gotoSettled_waits_for_the_late_chrome-error_commit_before_its_one_retry(navigate.ts;goto-settled.test.mjs_N1-N3);P4_10x_after_green
 - 2026-11-16T23:08:52Z occurrence=1f8733c0e by=merge_gate note=feature ci 43970555894 iris (shards-3) live:floor on ocutalon-ci-19: focus.spec.ts:145 P4, this time page.goto interrupted by a chrome-error navigation (infrastructure-shaped); the merged 28.2 diff touches no web, floor or heartbeat code; one rerun of the failed job
 
 ### DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140, and the reply says so
@@ -2552,6 +2554,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-01T03:59:33Z status=resolved-by:11-9-every-check-left-off-for-release-1-turns-on-and-the-ci-flake by=adjudication note=2da3f0ba: web/e2e/support/navigate.ts gotoSettled retries a page.goto that hits net::ERR_NETWORK_CHANGED, used by fillSignIn (sign-in/helpers.ts:44, the site that fired), openTrace and the online helpers (AC11; goto-settled.test.mjs; QA mutation red); the other direct page.goto calls stay as declined at the spec gate; reopen_if=net::ERR_NETWORK_CHANGED fails a run at a direct page.goto call
 - 2026-11-02T00:28:56Z occurrence=11-4-the-release-gets-draft-notes-and-a-checklist note=reopen_if fired in another message shape: CI run 41364655268 (dea3f6dd) live:demo-path sign-in goto interrupted by chrome-error://chromewebdata/; the gap is filed as DW-555
 - 2026-10-31T20:23:20Z occurrence=16-11-the-splash-promises-telegram-only-when-the-release-includes note=CI run 41236053364 attempt 1 (OCT-epic16 29835de9, iris shards, live:online-session): e2e-online/session/leave.spec.ts:104 L2 page.goto net::ERR_NETWORK_CHANGED; rerun of the failed job requested
+- 2026-11-17T09:48:37Z occurrence=103a6ac7a by=merge_gate note=feature ci 44044363400 iris (shards-4) on ocutalon-ci-25: live:sign-in-2 helper-waits.spec.ts:204 page.goto net::ERR_NETWORK_CHANGED (host network change); the 28.3 merge touches no web test; one rerun of the failed job
 
 ### DW-387: flake: Test.Core.SessionOpsProduction TestPageUnpairSendsTheNotice and TestRejectedPairsAreAudited fail 'one Pairing entry names the session' on a warm stack (AuditLog.Now() mark may share a stamp with the previous linked entry, so the wait returns two entries)
 - source: spec-16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi.md | severity: med | fix-risk: low | footprint: in-footprint
@@ -3440,6 +3443,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-07T20:58:59Z status=routed owner=burndown by=ci note=occurrence OCT-epic11 882b6d4b run 42406393504 browser live:demo-path 07-failure-paths:60 page.goto interrupted by navigation to ?signedOut=1, then 08 'replay request is pending'; one rerun requested by the orchestrator
 - 2026-11-13T06:13:39Z occurrence=22-3-call-mcp-tools-only-through-the-governed-proxy note=a758d17a_ci_43370177969_shards-10_live:sign-in_decision.spec_D8_chrome-error_navigation
 - 2026-11-15T17:53:35Z occurrence=feature-b337f61d9 by=orchestrator note=run 43738026674 att1 iris(shards-5) on ocutalon-ci-48 (new runner): heartbeat-card.spec.ts:677 HC4 page.goto to 127.0.0.1:52803 interrupted by chrome-error; superseded by df475cc64/9b9898a53 runs
+- 2026-11-17T01:02:09Z status=routed owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=lead note=chartered_into_Story_0.39_(Planner_flake_burndown_dispatch_2026-11-17)
+- 2026-11-17T09:03:58Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=same_fix_as_DW-349;U12_10x_after_green;the_?signedOut=1_variant_split_to_DW-1467
 - 2026-11-17T00:46:18Z occurrence=7a346a994 by=merge_gate note=OCT-epic25-s259 ci 43978832236 attempt 1 iris (shards-10) on ocutalon-ci-18: Usage U12 page.goto interrupted by a chrome-error navigation; green on rerun (ci-15)
 
 ### DW-557: test-release-notes.sh's real-tree rule runs notes.sh on the repository's own HEAD in the hosted checks job, so the integration branch's CI goes red for every epic as soon as a story of an epic with no line in release/notes-areas.txt (the step and personality epics) is marked done, or a v* tag leaves no new story; the areas refusal belongs at release time (notes.sh on a candidate), not in every push's CI
@@ -6835,6 +6840,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T19:46:28Z note=see also DW-1094 (possible shared cause)
 - 2026-11-11T10:15:04Z occurrence=25-2 by=orchestrator note=run 42995845667 job 130439625167 iris(image) lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows (pending reminder, watch, open approval) (ci-8); OCT-epic25 4af29b25; rerun of failed jobs
 - 2026-11-14T05:27:52Z occurrence=36-4-set-the-on-call-person-and-backup-in-settings by=runner note=CI run 43555521311 attempt 1 iris(image) lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows (with its five kinds of rows; loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link); OCT-epic36 4a74d329; one rerun of the failed job
+- 2026-11-17T02:15:46Z occurrence=27-3-link-slack-members-in-settings by=runner note=CI_run_43996613147_attempt_1_iris(image)_job_133750121043_runner_ocutalon-ci-25_lane-b@Contract,Core,Data,Live_Test.Data.Purge_TestCurrentSessionLosesNoRows('with_its_five_kinds_of_rows');OCT-epic27_14940d399;rerun_of_failed_jobs
 - 2026-11-17T03:00:55Z note=the same assertion and cause as DW-1449 (Test.Data.Purge TestCurrentSessionLosesNoRows; the daily digest's tick writes into the fixture sessions); closed together by Story 0.40
 
 ### DW-1098: post-contest idea: admins see instance-owned incident usage on the Usage page (today a local install counts only the session's own rows, by design)
@@ -8817,6 +8823,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-27-1-receive-slack-events-by-webhook.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Channel/Slack/In.cls Turn repeats Channel/Telegram/In.cls Turn step for step minus allowance and file; spec decision 9 forces the copy (U-177: a Lane B story may not edit or extract from a Lane A class)
 - 2026-11-16T18:25:34Z status=routed owner=burndown by=cr note=Rule 2 spec-forced copy; unify in one shared turn helper in a story allowed to edit Lane A and Lane B channel services
+- 2026-11-17T09:19:12Z status=wontfix-accepted owner=27-1-receive-slack-events-by-webhook by=burndown note=scope_frozen_1.0.13(owner);reopen_if=a_Lane_A_story_touches_Channel/Telegram/In.cls_Turn_or_WebChatIn.Accept(then_extract_one_shared_turn_helper)
 
 ### DW-1444: A Slack event over Data.Webhook BODYMAX (65,536 bytes) is answered 413 and dropped, so a very long direct message (Slack allows 40,000 characters and repeats the text in blocks) never becomes a turn
 - source: spec-27-1-receive-slack-events-by-webhook.md | severity: med | fix-risk: med | footprint: in-story
@@ -8849,6 +8856,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: loaded() at telegram-page.spec.ts:107 (called from :220 after page.reload()) timed out: 'element(s) not found' for main.main; the test routes the snapshot itself (changeSnapshot) and reloads four times; a SLOW irisScript of 14 s came just before it; 27 other demo-path tests and the floor's other 14 passed; Epic 24 changes no demo-path, Telegram card or rail code
 - 2026-11-16T19:52:47Z status=open owner=burndown by=epic-runner note=one rerun
 - 2026-11-16T20:37:03Z occurrence=OCT-epic24-c321d4680 by=epic-runner note=rerun_green_on_ocutalon-ci-5
+- 2026-11-17T01:02:08Z status=routed owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=lead note=chartered_into_Story_0.39_(Planner_flake_burndown_dispatch_2026-11-17)
+- 2026-11-17T09:03:58Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=telegram-page_reloads_through_loadedAfter(one_logged_CI-counted_retry);main-bundle-abort_repro_old_red/fixed_green;T2_10x_after_green
+- 2026-11-17T10:20:07Z note=DW-1458 (history H7, the same reload pattern; its ledger entry lives only on the parked OCT-epic0-triage-conf branch, which never merges) is RESOLVED by Story 0.39 (reloadSettled at H2, H3, H7), recorded here because the entry is not on feature
 
 ### DW-1449: flake (cause not found): Test.Data.Purge TestCurrentSessionLosesNoRows: the three kept sessions' row counts differed from 1|1|2(3)|1|1 after Retention.Purge(90), in CI shard lane-b@Contract,Core,Data,Live
 - source: epic-runner; OCT-epic24 c321d4680 ci 43934206289 attempt 1 job 133534373343 iris (image) on ocutalon-ci-20 | severity: med | fix-risk: low | footprint: in-epic
@@ -8858,6 +8868,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-16T20:37:03Z occurrence=OCT-epic24-c321d4680 by=epic-runner note=rerun_green_on_ocutalon-ci-30
 - 2026-11-16T20:49:21Z status=open owner=burndown by=lead note=diagnostics_eae99e206(before/after_counts_per_table,kept_session_reminders_in_the_message);review:Purge.cls:73_DeleteEscalations_literal_SessionRef='instance'+Kind='escalation'+State_fired/cancelled+CreatedAt<cutoff(strict,string_compare_at_second_resolution),no_join,no_trigger/FK/cascade_on_Reminder_or_Page;kept_sessions_reach_only_DeleteOwnedRows:122_after_Keeps:139-153,unchanged_by_24.3b;loop:lane-b@Data_x10_on_a_fresh_warm_lane-D_stack_10/10_green
 - 2026-11-16T21:47:30Z note=Contest Planner ruling ~22:10Z: the is-kept checks passed and only the counts differed, so something removed or never wrote rows of a kept session, and not Purge's delete path; suspects: a concurrent class in the same shard writing or cleaning the zzpurge fixtures, or the fixture setup racing; a repeat makes it a cause-and-fix story at once (data-loss shaped)
+- 2026-11-17T03:00:51Z status=routed owner=0-40-the-purge-test-s-sessions-are-kept-out-of-the-daily-digest-a by=lead note=classified_test_isolation(Planner_~03:30Z_Nov_17);writer=Digest.Process.Ticked_daily_digest_to_every_session_created_before_due;fix=Sent_row_per_fixture_session
 - 2026-11-17T02:15:37Z occurrence=14940d399 by=merge_gate note=OCCURRENCE 2 (cause-and-fix now, per the Planner): OCT-epic27 ci 43996613147 iris (image) on ocutalon-ci-25, Test.Data.Purge:TestCurrentSessionLosesNoRows failed the OPPOSITE assertion (Purge.cls test L248 'with its five kinds of rows': the GONE idle session still had owned rows after Retention.Purge(90), OwnedRows(gone) not 0|0|0|0|0); the kept-session checks passed; L248 prints no counts
 - 2026-11-17T02:33:19Z occurrence=5f1996ed6 by=merge_gate note=OCCURRENCE 3 (feature, ci 43998846310 iris (image) on ocutalon-ci-10) WITH DIAGNOSTICS: kept sessions 'a watch' and 'an open approval' went before 1|1|2|1|1 -> after 1|2|2|1|1 (SimMessage 1 -> 2: a NEW SimMessage row appeared during the test), and the idle session was NOT purged ('the idle session is gone' failed). Reading: a concurrent writer added a SimMessage to the zzpurge sessions at about 02:17:00Z, making the idle one look active. Not Purge deleting wrongly. SimMessage writers: Channel/SimMailbox/In+Out, Channel/SimPhone/Out, Channel/Operation; one rerun of the failed job
 ### DW-1435: flake: test-eval-set.sh rule capture reported "with the capture variable empty, the run is not the same, byte for byte, as with it unset" once on a local lane-C run (DW-1421 round-2 review) and passed on the unchanged rerun
@@ -8896,16 +8907,64 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: feature ci 43939939727 (d996ffcde) iris (browser) on ocutalon-ci-31 | severity: low | fix-risk: low | footprint: docker/tests/test-online-demo.sh
 - evidence: the head's diff from its green parent dddd24dfc is ci/units.sh and test-demo-path-gate.sh only; live:online-demo ran before live:production-restart in the job (units run in sequence), so the rebalance did not touch it; row 6 depends on a connection count read before S3 and S5
 - 2026-11-16T21:10:54Z status=open owner=burndown by=orchestrator note=flake rule: one rerun of the failed job; occurrence 1
+- 2026-11-17T01:02:09Z status=routed owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=lead note=chartered_into_Story_0.39_(Planner_flake_burndown_dispatch_2026-11-17)
+- 2026-11-17T09:03:59Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=row_6_waits_for_the_status_to_read_free_then_signs_in_once;hold_repro_old_red_10/10_fixed_green_10/10;stop_condition_not_fired
 ### DW-1436: 28.2: Test.Memory.Volume explains NEARESTSQL, which now also selects LastUsedAt; not run in the implement stage (memory-offline live unit only)
 - source: spec-28-2-fade-unused-memories-and-merge-duplicates-nightly.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: docker/tests/test-memory-offline.sh runs Test.Memory.Volume; settle by running that unit on a lane-C throwaway
 - 2026-11-16T17:02:30Z status=open owner=28-2-fade-unused-memories-and-merge-duplicates-nightly by=harvest note=settle at QA or the lead's smoke
 - 2026-11-16T17:56:56Z status=resolved-by:28-2-fade-unused-memories-and-merge-duplicates-nightly by=cr note=QA ran ci/iris.sh live memory-offline on a lane-C throwaway: PASS OcuTalon.Test.Memory.Volume (10,000 and 500 memories, the plan reads EmbeddingIdx) with NEARESTSQL selecting LastUsedAt
 
+### DW-1451: flake: live:sign-in-3 web/e2e/memory-card.spec.ts:219 MC3 hit the 45 s test timeout at line 119 (await answer.finished()), called from line 249, on a Playwright-fulfilled 500 of the notes route
+- source: ci run 43943159296 job iris (shards-5) 133565710915 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: runner ocutalon-ci-27; the hung response is route.fulfill (no server code serves it); fresh lane-C repro of sign-in-3 part 4/4 at the same code passed 34/34 (memory-card 26 tests, 57 s)
+- 2026-11-16T21:18:50Z status=routed owner=burndown by=ci note=one rerun of the failed job; a second hit on any head makes it a cause-and-fix story
+- 2026-11-17T09:06:29Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=memory-card_handled_waits_until_every_matching_request_finished_or_failed(no_Response.finished);scratch_repro_old_hang/fixed_green;MC3_10x_live_green
 ### DW-1452: flake candidate: live:sign-in-3 e2e/guide/guide.spec.ts:486 Q7 (the sent line gives way to the 90 s and 3 min lines by the page's clock) toHaveAttribute failed, element(s) not found
 - source: feature ci 43957453035 (854346fa1, the 27.1 merge) iris (shards-5) on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: web/e2e/guide/guide.spec.ts
 - evidence: the same group passed on 27.1's branch run 43938844259; 27.1 touches Web/Hook.cls, not the guide's page or spec; Q7 depends on the page's clock
 - 2026-11-16T22:01:47Z status=open owner=burndown by=orchestrator note=flake rule: one rerun of the failed job; occurrence 1; a repeat makes it a cause-and-fix item
+- 2026-11-17T01:02:09Z status=routed owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=lead note=chartered_into_Story_0.39_(Planner_flake_burndown_dispatch_2026-11-17)
+- 2026-11-17T09:03:59Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=guide_reopen()_through_loadedAfter;repro_old_red/fixed_green;Q7_10x_after_green
+
+### DW-1467: flake: the app's own sign-out redirect (?signedOut=1, session-gate.ts:98) can interrupt a sign-in page.goto at gotoSettled's first attempt (navigate.ts:58), then a demo-path cascade; a different cause from the chrome-error interruption (Story 0.39)
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 42406393504 (OCT-epic11 882b6d4b) live:demo-path 07-failure-paths:60 interrupted by navigation to ?signedOut=1, then 08 cascaded; local e03ca809 07 the same; split out of DW-555 by the 0.39 plan
+- 2026-11-17T01:17:55Z status=open owner=burndown by=lead note=one rerun per the flake rule; a repeat makes it a cause-and-fix item
+
+### DW-1468: follow-on: about 45 more bare page.reload() sites (chat 5, notice 5, answers 3, floor/keyboard 4, rail 2, phone 2, demo-switch 4, sources 2, and more) follow the reload with a plain 10 s wait instead of loadedAfter/reloadSettled; convert them once Story 0.39 proves out
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 0.39 gate 2; the same blank-page-after-reload cause as DW-1448/1458/1452/1457
+- 2026-11-17T01:20:17Z status=routed owner=burndown by=lead note=Contest Planner ruling 2026-11-17 (prompts/story-039-flakes-rulings-20261117.md item 2): a follow-on story, LOW, after 0.39 proves out
+
+### DW-1469: follow-on: run Chromium in its own network namespace in CI, so the CI host's interface changes (sibling jobs' compose networks) never reach the browser (the net::ERR_NETWORK_CHANGED root of DW-415, DW-555 and the reload blank pages)
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Story 0.39 investigation: 7 of 7 chrome-error sightings and the reload blank pages trace to a network change seen by Chromium on the CI host (inference, unmeasured)
+- 2026-11-17T01:20:17Z status=routed owner=burndown by=lead note=Contest Planner ruling 2026-11-17 (rulings item 1): ledgered LOW, a CI infrastructure follow-on, not Story 0.39
+
+### DW-1471: 0.39 pass A: the second-retry failure in withOneReload (if (usedUp) throw usedUp) is pinned only through reportRetryOnce and a source pin; no row or live repro drives two retries at one site through loadedAfter or reloadSettled
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: verification-gap: removing the throw leaves retry-bounds.test.mjs green; web/e2e/support/floor.ts:189
+- 2026-11-17T02:27:14Z status=open owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=harvest note=pass B adds a row or live repro (AC2b)
+- 2026-11-17T08:40:28Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=pass_B2_c54bdf0c2:row_through_reloadSettled/withOneReload,deleting_the_throw_turns_row_1_red
+
+### DW-1472: 0.39 pass A: T1, T4 and T5 count pairing-code requests across a reload; the one logged retry asks for the code again, so a healed flake could fail as a count of 2
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: blind-hunter; Task 4 asks to confirm the counts; only T2 ran on the fixed tree in pass A
+- 2026-11-17T02:27:14Z status=open owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=harvest note=pass B checks T1/T4/T5 under the repro and with a full live demo-path run
+- 2026-11-17T08:40:28Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=pass_B2_c54bdf0c2:main-bundle-abort_repro:T1,T5,T4-refused_pass_with_one_RETRY
+- 2026-11-17T08:40:37Z occurrence=0.39-pass-B2 by=adjudication note=the_pairing-code_counts_are_unchanged_under_the_one_retry;no_test_change_needed
+
+### DW-1479: flake candidate: web/e2e-online/busy.spec.ts:135 B1 reads the busy splash's focus once (document.activeElement?.id) right after the page's load, so the splash's autofocus may not have applied yet ('the error has the focus': expected ocu-error, received '')
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: one red in a local live:online-demo run in 0.39 pass B2 (lane A), green in the re-run and in a run before it; not this story's file
+- 2026-11-17T08:40:28Z status=open owner=burndown by=harvest note=flake rule: a repeat makes it a cause-and-fix item; DEFERRED under the 1.0.13 wrap-up unless needed for CI green
+
+### DW-1480: flake candidate: a reload whose load event never fires (Q7 reopen, page.reload: Timeout 30000ms exceeded, local sign-in-3 before-loop) is not covered by loadedAfter's /state retry; the reload is the bounded action and fails by name with no retry
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: Story 0.39 pass A before-loop: 1 of 10 Q7 runs red at the bare reopen() reload with a reload timeout, not DW-1452's CI signature (element not found). loadedAfter(page, () => page.reload()) bounds that reload by the navigation wait before withOneReload begins, so the same hang still fails (named). Unverified whether it recurs: 15 after-iterations green.
+- 2026-11-17T08:59:27Z status=escalated owner=burndown by=cr note=fix would reload with waitUntil commit at the 27 prescribed sites; changes the ruled call shape in a frozen release
+- 2026-11-17T10:19:59Z status=wontfix-accepted by=orchestrator note=Contest Planner ruling ~10:00Z Nov 17: test-only, the named error is enough for 1.0.13; reopen if it shows up in CI
 
 ### DW-1465: A linked chat user whose IRIS account is disabled or expired may still get Slack turns: Core.Conversation.MayChat reads only the recursed role set (web chat's role rule), not the account state, while web chat refuses such a sign-in
 - source: spec-27-3-link-slack-members-in-settings.md | severity: med | fix-risk: low | footprint: in-epic
@@ -8913,12 +8972,45 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-17T00:56:23Z status=escalated owner=burndown by=harvest note=for_the_Planner:extend_MayChat(irisUser)_with_account_state_(Enabled,expiry)_in_27.3_or_in_0.38?
 - 2026-11-17T01:12:02Z occurrence=27-3-link-slack-members-in-settings note=measured(throwaway):role_set_reads_OK_with_OcuTalonUser_for_a_disabled_and_an_expired_account;so_MayChat_answers_1
 - 2026-11-17T06:41:34Z status=routed owner=0-38-telegram-and-email-turns-check-the-person-s-role-at-use-time by=lead note=in_0.38_scope(Planner_~02:05Z_Nov_17)
+- 2026-11-17T01:36:09Z status=routed owner=burndown by=merge_gate note=Contest_Planner_2026-11-17:to_lane_D_Story_0.38(DW-1284)_extend_MayChat(irisUser)_with_account_state;key_not_yet_in_tracker
+- 2026-11-17T09:19:13Z note=overflow:owned_by_lane_D_Story_0.38(Planner_ruling;key_not_in_tracker) by=burndown
 
 ### DW-1466: The spine's dependency direction lists no Core-to-Web reference, yet Core.Conversation.MayChat calls OcuTalon.Web.Public.Shell.MayChat (ruled in amended AD-14), so the diagram and AD-14 disagree
 - source: spec-27-3-link-slack-members-in-settings.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Core/Conversation.cls MayChat references Web.Public.Shell; ARCHITECTURE-SPINE Dependency direction (mermaid + prose) has no Core->Web arrow and says the rest is checked in review; precedent Core.Files->Web.Documents is also unlisted
 - 2026-11-17T01:12:02Z status=escalated owner=burndown by=cr note=for_the_Planner:record_the_ruled_Core->Web.Public.Shell.MayChat_edge_in_the_dependency_diagram(or_move_the_predicate)
 - 2026-11-17T06:41:34Z status=routed owner=0-38-telegram-and-email-turns-check-the-person-s-role-at-use-time by=lead note=in_0.38_scope(Planner_~02:05Z_Nov_17)
+- 2026-11-17T01:36:09Z status=routed owner=burndown by=merge_gate note=Contest_Planner_2026-11-17:to_lane_D_Story_0.38_move_the_predicate_into_Core;key_not_yet_in_tracker
+- 2026-11-17T09:19:13Z note=overflow:owned_by_lane_D_Story_0.38(Planner_ruling;key_not_in_tracker) by=burndown
+### DW-1459: 28.3: OnAuthenticate's refusals (online demo, widened specification) and the real $Username and application role are not exercised through the dispatcher or iris-mcp-server
+- source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: direct web path answers 502 GATEWAY_REQUIRED before OnAuthenticate; iris-mcp-server 2.0.0 lists no tool on build 154 (Task 0)
+- 2026-11-16T23:51:34Z status=routed owner=28-5-connect-an-mcp-client-through-iris-mcp-server by=harvest note=settled by Story 28.5's gateway tests
+
+### DW-1460: 28.3: no test inspects an online-demo install for the absence of /mcp/ocutalon, OcuTalon_MCPServer, OcuTalonMCPApp and OcuTalonMCPClient
+- source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestDemoRemoves flips the flag on an ordinary stack; a row in docker/tests/test-online-demo.sh run on an online-demo stack settles it
+- 2026-11-16T23:51:34Z status=open owner=28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients by=harvest note=QA adds the row
+- 2026-11-17T00:33:46Z status=resolved-by:28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients by=cr note=QA row 11 of test-online-demo.sh passes on a fresh lane-C online-demo stack; mutation red observed
+
+### DW-1461: 28.3: the security overview's Application roles and Roles tables omit /mcp/ocutalon and OcuTalonMCPApp (R on the private database); only P8's prose names them
+- source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: SecurityOverview.Applications reads only Web.Definitions and RoleRows only Grants(), so the one application role with R on OCUTALON_PRIVATE is in neither table (OcuTalonWebhook, also an application role with no members, is in both) and TestPrivilegesMatchSecurityRecords never checks it.
+- 2026-11-17T00:33:45Z status=decision-pending owner=burndown by=cr note=Planner: add the generated rows (Applications from Mcp.ServiceApp, role rows for APPROLE) or keep prose-only (in-stage choice)
+- 2026-11-17T01:19:07Z status=open owner=28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients by=planner note=APPROVED (story-283 rulings, last section): add the generated rows; rework iteration 1
+- 2026-11-17T02:24:18Z status=resolved-by:28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients by=cr note=generated by SecurityOverview AppRoleGrants+Applications off demo; doc rows match; Test.Install.SecurityOverview green (e28s3dw)
+
+### DW-1462: 28.3: user-facing texts not yet ruled: ReadOnlyProblem refusal sentences, the IRIS descriptions of OcuTalon_MCPServer and OcuTalonMCPApp, and two sentences 28.3 made stale
+- source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: The implement stage added refusal sentences (sent as OnAuthenticate's 401 error) and two Portal descriptions; Mcp.Grants' warning 'so it declares no grant' and docs/security-overview.md's 'written only by the features ...' sentence no longer describe 28.3's behaviour.
+- 2026-11-17T00:33:45Z status=decision-pending owner=burndown by=cr note=human=Planner text ruling; exact texts and proposals in the 28.3 spec's Review Findings
+- 2026-11-17T01:19:08Z status=open owner=28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients by=planner note=ruled: keep the Service.cls refusals and Portal descriptions; fix Mcp.cls:122 and security-overview.md:177 verbatim; rework iteration 1
+- 2026-11-17T02:24:18Z status=resolved-by:28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients by=cr note=Mcp.cls:122 and security-overview.md:181 verbatim; overviewdoc pin green, mutation red; Service.cls texts kept per ruling
+
+### DW-1463: 28.3: Mcp.Service.OwnerOf copies Data.Session.ForUser's lookup SQL (Lane B), so the served tools and the chat could resolve a different session if ForUser's lookup changes
+- source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Spec-named copy (Lane B file, ForUser creates a row); no test asserts the two lookups agree; unifying needs a no-create lookup on Data.Session in a Lane B story.
+- 2026-11-17T00:33:45Z status=wontfix-accepted owner=28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients by=cr note=reopen_if=Data.Session.ForUser's SELECT differs from Mcp.Service.OwnerOf's (filter, order or column)
 ### DW-1437: No eval case covers self-watch (OcuTalon watching its own production), the one path by which a refusal tag can reach the diagnosis model (read_event_log of a failure that shares a session with a Decide refusal warning)
 - source: spec-0-dw-1421-r3-cut-floor-length-tags-and-an-absent-diagnosis-confidence.md; Contest Planner ruling ~18:45Z Nov 16 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Decide.cls Conclude logs the refusal (LOGWARNING) in the decision session; Watch/Reader.cls reads every event-log row of a failed session (bySession); EvidencePack.EventLog is the read_event_log answer (Tools/Watch.cls); Reader.Productions leaves OcuTalon own production out only on the online demo
@@ -8933,12 +9025,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: feature ci 43970555894 (1f8733c0e, the 28.2 merge) iris (shards-5) on ocutalon-ci-17 | severity: low | fix-risk: low | footprint: web/e2e/heartbeat-card.spec.ts
 - evidence: the merged 28.2 diff touches no web or heartbeat code; the line was absent, not wrong; 22:47Z is outside DW-800's midnight window and DW-845's 00-09 UTC window
 - 2026-11-16T23:08:52Z status=open owner=burndown by=orchestrator note=flake rule: one rerun of the failed job; occurrence 1; a repeat makes it a cause-and-fix item
+- 2026-11-17T09:06:30Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=HC8_reloads_through_loadedAfter_with_the_heartbeat_GET_armed_and_named;repros_old_red/fixed_green;HC8_10x_green
 
 ### DW-1464: a turn errors at the UTC day rollover (00:00:06Z, agentStepCount 0): the turn decision falls back with reason error within 258 ms, before any agent step
 - source: feature ci 43982398541 (b2768afeb) iris (browser) on ocutalon-ci-25, live:demo-path 03-reminder; the Planner read the trace on the host | severity: med | fix-risk: med | footprint: the turn path's day-keyed reads (daily cost or allowance row, usage cap, day-keyed counter)
 - evidence: the reminder TURN decision: fallback=true, fallbackReason error, agentStepCount 0, durationMs 258, recordedAt 2026-11-17T00:00:06Z; every later step and Telegram T7/T8 failed after it; not reproducible off midnight (local demo-path at b2768afeb passed); a real user chatting at midnight UTC could get a reasonless fallback too
 - 2026-11-17T00:48:03Z status=routed owner=burndown by=orchestrator note=Planner ruling ~01:05Z: PRODUCT bug candidate on the flake-burndown lane (lane A); find the day-keyed read on the turn path; deterministic test with the clock at 23:59:59, then 00:00:01; related family DW-800
 - 2026-11-16T21:32:25Z occurrence=2 by=lead note=occurrence 2 in the Planner's round-3 re-capture r4, shipments-day-first-date; fixed in DW-1421 round 4 (CLOCKTIME allows an h:mm directly after a date or followed by :ss)
+- 2026-11-17T09:06:30Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=not_a_product_bug:CI_mock_tie(exact_text_'CI_mock:_two_guide_prompts_match:_guide-reminder_and_guide-watch');mock_tie-break_ignoring_quoted_lines(AD-22);K1-K3_node_rows+Test.Contract.Mock_TestMidnightReminderPicksItsPrompt_at_23:59:59_and_00:00:01;severity_LOW_once_fixed(Planner)
 
 ### DW-1453: #9404 seen once in the Planner's control on diagnose claims-archive-internal-error; reconsider on repeats (C2)
 - source: Contest Planner control verdict ~22:05Z Nov 16 (DW-1421 round 4 additions) | severity: low | fix-risk: low | footprint: in-epic
@@ -8954,3 +9048,44 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-38 (implement verification, lane D e038i reverse shards) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: FAIL TestStubSkipped: no error or alert row was written: Ens.Alarm Message can not be found, timer event ignored; order dependent; no Schedule file in 0.38's diff
 - 2026-11-17T14:51:23Z status=open owner=burndown by=lead note=test isolation
+### DW-1474: flake: Test.Core.PersonaAnswers TestTelegramFirstApproves 'the phone copy's Answer is the approval' red once in CI iris(image) lane-b@Contract,Core,Data,Live on feature 81265443f (ci 44007120511, ocutalon-ci-32); WaitAnswer returns the first non-empty Answer or empty at SECONDS, so a slow or differently-timed phone copy fails it
+- source: feature-81265443f-red-20261117 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: not reproduced: fresh class alone pass (e27fxc, 21.1s) and fresh shard part 2/4 with its 10 predecessors pass (e27fxs, 26 classes); earlier assertions of the same test (request done, approved from telegram by the user) passed in CI, so the role check (HoldsRole via the 27.3 RolesOf) answered 1; RolesOf diff is behaviour-neutral (same call, same ISOK and ListFind, same 0 on error/empty)
+- 2026-11-17T06:24:00Z status=routed owner=burndown by=runner note=flake_candidate;one_rerun_rule;a_second_red_on_any_head_makes_it_a_story
+
+### DW-1475: Channel/ReplyText.cls copies Telegram/Out.cls private CheckSentence/WhatFailed (~70 lines) for Slack replies
+- source: spec-27-2-reply-as-slack-messages-with-no-socket-mode.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: spec-forced by U-177 (a Lane B story may not edit or extract from Lane A's Telegram/Out.cls); Decided 7
+- 2026-11-17T07:39:18Z status=wontfix-accepted owner=27-2-reply-as-slack-messages-with-no-socket-mode by=harvest note=reopen_if=a_Lane_A_story_touches_Telegram/Out.cls_CheckSentence_(then_make_both_call_ReplyText)
+
+### DW-1476: docs/security-overview.md lists where data leaves the instance and does not name Slack (chat.postMessage to the linked member)
+- source: spec-27-2-reply-as-slack-messages-with-no-socket-mode.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: docs/** is Epic 28's path and the sentence is public text the Planner has not worded; scope frozen for 1.0.13
+- 2026-11-17T07:39:18Z status=escalated owner=burndown by=harvest note=for_the_Planner:word_one_security-overview_line_for_Slack_or_accept_the_gap_for_1.0.13
+- 2026-11-17T08:11:25Z occurrence=27-2-reply-as-slack-messages-with-no-socket-mode
+- 2026-11-17T09:58:45Z status=resolved-by:27-2-reply-as-slack-messages-with-no-socket-mode owner=27-2-reply-as-slack-messages-with-no-socket-mode by=merge_gate note=Contest_Planner_worded_the_line(Nov_17);added_to_docs/security-overview.md_Data_section_in_9801ed84d;pinned_in_test-release-sequence_overviewdoc_with_a_control
+
+### DW-1477: shards-3 CI group time after Test.Msg.Catalog TestEveryKeyOnEveryChannel grew with slack (unverified against the 32-minute line)
+- source: spec-27-2-reply-as-slack-messages-with-no-socket-mode.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: settle from the feature CI run's shards-3 time after the 27.2 merge
+- 2026-11-17T07:39:18Z status=routed owner=burndown by=harvest note=check_shards-3_duration_on_the_27.2_branch_CI_and_feature_merge_run
+- 2026-11-17T09:19:12Z status=escalated owner=burndown by=burndown note=MEASURED_shards-3_job:37.8min_on_27.2_head_ea0736ead(ci_44047367644);prior_heads_33.7(81265443f),34.9(05915a781),38.8(1f8733c0e),40.2(14940d399):already_over_the_32-min_line_since_27.1's_live:slack-hook;for_the_Planner's_CI-budget_audit
+- 2026-11-17T09:58:45Z status=wontfix-accepted owner=27-2-reply-as-slack-messages-with-no-socket-mode by=merge_gate note=Contest_Planner_accepted;reopen_if=a_shards-3_job_comes_within_5_min_of_its_timeout_or_times_out(report_before_any_rerun)
+
+### DW-1478: lint_spine.py reports ok:false from 13 pre-existing LOW placeholder findings (none in lines Epic 27 added)
+- source: spec-27-2-reply-as-slack-messages-with-no-socket-mode.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: same 13 findings on feature before Epic 27; AC1 of 27.1/27.3/27.2 says ok:true
+- 2026-11-17T07:39:18Z status=wontfix-accepted owner=27-2-reply-as-slack-messages-with-no-socket-mode by=harvest note=reopen_if=a_spine_cleanup_story_or_a_new_non-placeholder_lint_finding
+### DW-1470: 28.3: Mcp.ApplyService closes OcuTalon_MCPServer's public permission only when the application role, application and resource steps succeed first
+- source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: ApplyService quits on a failed ApplyAppRole/ApplyApplication/MakeResource before ClosePublicPermission, so on such a failed start an admin-set public permission stays open while an existing /mcp/ocutalon still adds OcuTalonMCPApp (S-28.3-4 says every start). Fix: close whenever the resource exists, even after an earlier failure, plus a failure-seam test.
+- 2026-11-17T02:24:18Z status=routed owner=burndown by=cr note=28.3 re-review (Rule 15 exit): needs control-flow change and failure-seam test; the next successful start closes it
+- 2026-11-17T02:57:32Z status=open owner=28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients by=planner note=ruled: fix in 28.3 - close the public permission first, unconditionally, before anything that can fail; test an earlier part failing; rework iteration 2
+- 2026-11-17T03:19:44Z status=resolved-by:28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients by=cr note=ApplyService closes the public permission first when the resource exists; TestClosesPublicPermissionWhenAPartFails red under mutation
+
+### DW-1473: flake candidate: OcuTalon.Test.Mcp.SourceRunProduction TestStopThenResume 'the poll was recorded within 40 seconds' failed once in a fresh lane-C shard run of lane-a at Mcp (class took 93 s under host load)
+- source: epic-28 fresh check e28s3f2 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: same tree, class alone on a fresh lane-C stack passed in 46 s; 28.3 changes no source-poll code
+- 2026-11-17T02:41:59Z status=wontfix-accepted owner=burndown by=cr note=reopen_if=a second red of TestStopThenResume on any head, local or CI
+- 2026-11-17T02:54:45Z status=escalated owner=burndown by=lead note=second local red in the reversed lane-a Mcp shard (TestNoSecretLeaksOnFailure, same 40 s poll assertion, class 89 s); alone passes in 46 s; both orders passed at 28.3 head d10945ef5 before integrating feature 05915a781 (25.9 SettingsOps, DW-1421 round 3 Decide); feature itself is green in CI; cause unknown - CI on the pushed head decides; a CI red on it is a cause-and-fix item
+- 2026-11-17T03:51:21Z status=wontfix-accepted by=lead note=CI on the 28.3 head 96cc877a6 (run 44006481188, iris shards-2 green): SourceRunProduction passed in 49.81 s; the local reds were host-load timing; reopen_if=a red of its 40 s poll assertion in CI on any head

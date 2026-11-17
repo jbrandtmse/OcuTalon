@@ -1,0 +1,13 @@
+{
+  "name": "slack-rate-limited",
+  "match": {
+    "slack": "chat.postMessage"
+  },
+  "replies": [
+    {
+      "status": 429,
+      "headers": { "Retry-After": "1" },
+      "body": { "ok": false, "error": "ratelimited" }
+    }
+  ]
+}

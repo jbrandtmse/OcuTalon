@@ -7,6 +7,7 @@
 ///     the session remove the link with no code of the purge's own (R8). A link to a session that has no row cannot be saved;
 ///   - the Slack member id and team id are personal identifiers: they are never put in a trace, a log line, an audit entry or a message, and the writers' error
 ///     texts never hold them.
+/// MemberFor is the read behind SlackOut (Story 27.2): the member and the link's Ref of a session, for the post of a reply.
 /// EVENTGLOBAL holds the claims of event ids (ClaimEvent), written only by ClaimEvent: ("e", UTC hour, event id) is the count of claims, and a bucket older than
 /// CLAIMSECONDS is deleted at the next claim. It holds no text and no Slack id but the event id.
 /// WORKSPACEGLOBAL holds the one workspace team id that SlackIn has seen on a signed event (NoteWorkspace, Workspace): a link is made in that workspace, and an
@@ -66,6 +67,22 @@ ClassMethod SessionFor(teamId As %String, memberId As %String) As %String
 	If '$IsObject(row) Quit ""
 	Set sessionRef = row.SessionRef
 	Quit $Select(##class(OcuTalon.Data.Session).RefIndexExists(sessionRef): sessionRef, 1: "")
+}
+
+/// The member id of the session's link (SlackOut's recipient), "" when the session has none, with linkRef the link's Ref ("" then). The id is returned to the caller and goes
+/// nowhere else: it is in no text, log or message of this class.
+ClassMethod MemberFor(sessionRef As %String, Output linkRef As %String) As %String
+{
+	Set linkRef = ""
+	Set row = ""
+	Try {
+		Set row = ..SessionRefIndexOpen($Get(sessionRef), 0)
+	} Catch {
+		Set row = ""
+	}
+	If '$IsObject(row) Quit ""
+	Set linkRef = row.Ref
+	Quit row.MemberId
 }
 
 /// Links the member to the session and answers the link's Ref, with reason one of "" (linked, or already linked to this same session: the existing Ref), bad_id (an id

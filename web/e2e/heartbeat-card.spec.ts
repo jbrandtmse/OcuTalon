@@ -3,8 +3,10 @@ import { expect, test, type Locator, type Page } from './support/fixtures';
 import { README_ACCOUNT } from './sign-in/helpers';
 import { changeSnapshot } from './support/api';
 import { pointKeys, restoreKeys } from './support/devices';
-import { applied, railOf, signInReadmeLoaded } from './support/floor';
+import { WAIT_SLACK_MS, boundedStep, waitsFor } from './support/bounds';
+import { applied, loadedAfter, railOf, signInReadmeLoaded } from './support/floor';
 import { chk, irisScript, publishStatus, quoted } from './support/iris';
+import { currentWaits } from './support/navigate';
 import { clock } from './support/page';
 import { sessionRef } from './support/persona';
 import { instanceSeq, monitorSettled, runnersReady, runnersRecorded } from './support/runners';
@@ -149,6 +151,21 @@ async function rewriteGet(page: Page, override: () => Record<string, unknown>): 
     const body = (await response.json()) as Record<string, unknown>;
     return route.fulfill({ response, json: { ...body, ...override() } });
   });
+}
+
+/**
+ * Reloads the page through loadedAfter (its snapshot GET, with the one logged retry) and then asserts that the heartbeat GET of the reloaded
+ * card answered 200: the wait for that GET is armed before the reload, bounded by the action wait in force and named when it passes it, so
+ * that a card whose read failed fails here by name and not as a missing line.
+ */
+async function reloadWithHeartbeat(page: Page): Promise<void> {
+  const waits = currentWaits() ?? { action: waitsFor(0).actionTimeout, navigation: waitsFor(0).navigationTimeout };
+  const asked = page.waitForResponse((response) => response.request().method() === 'GET' && new URL(response.url()).pathname === HEARTBEAT, { timeout: waits.navigation + waits.action + WAIT_SLACK_MS });
+  // The wait is awaited below; a reload that fails first must not leave its timeout unhandled.
+  asked.catch(() => undefined);
+  await loadedAfter(page, () => page.reload());
+  const response = await boundedStep(asked, waits.action, 'the heartbeat GET after the reload');
+  expect(response.status(), `the heartbeat GET answered ${response.status()}`).toBe(200);
 }
 
 /** The text of a line as the page renders it: a trace link at the end reads "Trace (opens in a new tab)", its hidden suffix included. */
@@ -410,28 +427,28 @@ test('HC8: each outcome and each skip reads in the UX texts, and the Today line 
   await withCard(page, async () => {
     for (const [label, answer, expected] of cases) {
       shown = { lastSkipAt: null, lastSkipReason: '', ...answer };
-      await page.reload();
+      await reloadWithHeartbeat(page);
       await expect(lastOf(page), label).toHaveText(exactly(expected));
       if (label === 'ignore') await expect(lastOf(page).locator('app-trace-link'), 'a trace link ends the check-in line').toHaveCount(1);
     }
     const nextDueAt = at(30 * MINUTE);
     shown = { ...checkIn('ignore'), today: { checkIns: 3, costUSD: 0.0036 }, on: true, interval: 60, from: '07:15', to: '21:45', nextDueAt };
-    await page.reload();
+    await reloadWithHeartbeat(page);
     await expect(todayOf(page), 'three check-ins read in the plural').toHaveText('Today: 3 check-ins, $0.0036');
     await expect(card(page).locator('p.line').first(), 'the on line holds the interval, the hours and the next check-in').toHaveText(
       `Every hour, 07:15 to 21:45 \u00b7 Next check-in ${clock(nextDueAt, LOCALE, ZONE)}`,
     );
     shown = { today: { checkIns: 1, costUSD: 0.0012 }, on: true, interval: 1440, from: '', to: '', nextDueAt: null };
-    await page.reload();
+    await reloadWithHeartbeat(page);
     await expect(todayOf(page), 'one check-in reads in the singular').toHaveText('Today: 1 check-in, $0.0012');
     await expect(card(page).locator('p.line').first(), 'all day with no next check-in is the interval alone').toHaveText('Every 24 hours');
     // Story 39.9 (QA, DW-824): the GET of a check-in that acted carries its decision plus its read-only turn as lastCostUSD, so the two lines agree.
     shown = { lastSkipAt: null, lastSkipReason: '', ...checkIn('act', { lastCostUSD: 0.0006 }), today: { checkIns: 1, costUSD: 0.0006 } };
-    await page.reload();
+    await reloadWithHeartbeat(page);
     await expect(lastOf(page), 'an Act check-in shows the cost of its decision and its turn').toHaveText(exactly(`Last check-in ${time} \u00b7 Offered an action \u00b7 $0.0006 \u00b7 Trace`));
     await expect(todayOf(page), 'and Today shows the same cost for the one check-in').toHaveText('Today: 1 check-in, $0.0006');
     shown = { today: { checkIns: 0, costUSD: 0 } };
-    await page.reload();
+    await reloadWithHeartbeat(page);
     await expect(todayOf(page), 'none today: no Today line').toHaveCount(0);
   });
 });
